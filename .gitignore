@@ -1,0 +1,12 @@
+# Ignore node_modules in all locations
+node_modules/
+
+# Ignore .env only inside frontend
+frontend/.env
+
+# Build-related
+dist/
+build/
+
+# macOS junk
+.DS_Store
