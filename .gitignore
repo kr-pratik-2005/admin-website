@@ -13,3 +13,4 @@ build/
 # Do NOT push sensitive files
 backend/.env
 backend/import_to_firestore.py
+backend/serviceAccountKey.json
