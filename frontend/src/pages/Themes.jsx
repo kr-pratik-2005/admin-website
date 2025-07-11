@@ -25,23 +25,28 @@ export default function Themes() {
     <div className="themes-bg">
       {/* Header */}
       <header className="themes-header">
-        <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
-          <img src={giraffeIcon} alt="logo" className="themes-logo" />
-          <nav style={{ display: "flex", gap: "2rem" }}>
-            <span style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }}>Home</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }}>Daily Report</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }}>Reports</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }}>Child Data</span>
-            <span style={{ color: "#8b5cf6", fontWeight: "500", cursor: "pointer" }}>Theme</span>
-            <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/fees')}
->
-  Fees
-</span>
+       <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
+  <img src={giraffeIcon} alt="logo" className="themes-logo" />
+  <nav style={{ display: "flex", gap: "2rem" }}>
+    <span style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }}>Home</span>
+    <span style={{ color: "#6b7280", cursor: "pointer" }}>Daily Report</span>
+    <span style={{ color: "#6b7280", cursor: "pointer" }}>Reports</span>
+    <span
+      style={{ color: "#6b7280", cursor: "pointer" }}
+      onClick={() => navigate('/child-report')}
+    >
+      Child Data
+    </span>
+    <span style={{ color: "#8b5cf6", fontWeight: "500", cursor: "pointer" }}>Theme</span>
+    <span
+      style={{ color: '#6b7280', cursor: 'pointer' }}
+      onClick={() => navigate('/fees')}
+    >
+      Fees
+    </span>
+  </nav>
+</div>
 
-          </nav>
-        </div>
         <div style={{ width: 44 }}></div>
       </header>
 

@@ -1,19 +1,90 @@
-import React from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update path as needed
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import giraffeIcon from "../assets/Logo.png";
+import { useNavigate, useLocation } from "react-router-dom";
+import { db } from "../firebase/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function FeesReportView() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { student_id } = location.state || {};
 
-  // Example data for the report view
-  const data = {
-    name: "Ashish",
-    class: "Nursery",
-    attendance: "30/30",
-    frequency: "Monthly",
-    dateOfJoin: "Jun 07, 2025",
-    fees: "₹ 9500"
-  };
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStudentData = async () => {
+      if (!student_id) {
+        setData(null);
+        setLoading(false);
+        return;
+      }
+
+      // 1. Fetch student info
+      const studentQ = query(
+        collection(db, "students"),
+        where("student_id", "==", student_id)
+      );
+      const studentSnap = await getDocs(studentQ);
+      if (studentSnap.empty) {
+        setData(null);
+        setLoading(false);
+        return;
+      }
+      const student = studentSnap.docs[0].data();
+
+      // 2. Fetch latest fees record for this student
+      const feesQ = query(
+        collection(db, "fees"),
+        where("student_id", "==", student_id)
+      );
+      const feesSnap = await getDocs(feesQ);
+      let latestFee = null;
+      if (!feesSnap.empty) {
+        latestFee = feesSnap.docs
+          .map(doc => doc.data())
+          .sort((a, b) => (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0))[0];
+      }
+
+      // 3. Fetch attendance
+      const attendanceQ = query(
+        collection(db, "attendance_records"),
+        where("student_id", "==", student_id)
+      );
+      const attendanceSnap = await getDocs(attendanceQ);
+      const attendanceTotal = attendanceSnap.docs.length;
+      const attendancePresent = attendanceSnap.docs.filter(doc => doc.data().isPresent).length;
+
+      // 4. Set data
+      setData({
+        name: student.name,
+        class: student.grade,
+        attendance: `${attendancePresent}/${attendanceTotal}`,
+        frequency: latestFee ? (latestFee.frequency || "Monthly") : "Monthly",
+        dateOfJoin: student.joined_date
+          ? new Date(
+              student.joined_date.seconds
+                ? student.joined_date.seconds * 1000
+                : student.joined_date
+            ).toLocaleDateString("en-US", {
+              month: "short",
+              day: "2-digit",
+              year: "numeric"
+            })
+          : "",
+        fees: latestFee
+  ? `₹ ${latestFee.fees !== undefined ? latestFee.fees : "N/A"}`
+  : (student.fees !== undefined ? `₹ ${student.fees}` : "N/A"),
+
+      });
+      setLoading(false);
+    };
+
+    fetchStudentData();
+  }, [student_id]);
+
+  if (loading) return <div style={{ textAlign: "center", marginTop: "3rem" }}>Loading...</div>;
+  if (!data) return <div style={{ textAlign: "center", marginTop: "3rem" }}>Student not found.</div>;
 
   return (
     <div className="fees-report-bg">
@@ -63,17 +134,18 @@ export default function FeesReportView() {
               <input className="fees-report-input" value={data.fees} readOnly />
             </div>
             <div className="fees-report-btn-row">
-              <button
-                type="button"
-                className="fees-back-btn"
-                onClick={() => navigate('/fees/report-table')}
-              >
+              <button type="button" className="fees-back-btn" onClick={() => navigate(-1)}>
                 Back
               </button>
             </div>
           </form>
         </div>
       </main>
+
+  
+
+  
+
       {/* CSS */}
       <style>{`
         .fees-report-bg {

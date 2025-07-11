@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import giraffeIcon from "../assets/Logo.png";
 import { useNavigate, useLocation } from "react-router-dom";
 
-export default function ChildDevelopmentInfo() {
+export default function ChildDevelopmentInfo(childData, setChildData, onNext) {
   const navigate = useNavigate();
   const location = useLocation();
   const isActive = (path) => {

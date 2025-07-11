@@ -1,45 +1,105 @@
-import React, { useState } from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update path as needed
-import { useNavigate } from "react-router-dom";
-
+import React, { useState, useEffect } from "react";
+import giraffeIcon from "../assets/Logo.png";
+import { useNavigate, useLocation } from "react-router-dom";
+import { v4 as uuidv4 } from "uuid";
+import { db } from "../firebase/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { getMonthString } from "./MonthlyInvoice";
 export default function EditInvoice() {
   const navigate = useNavigate();
-  const [feesAmount, setFeesAmount] = useState("9500");
+  const location = useLocation();
+
+  const { student_id, name, grade, fee,month } = location.state || {};
+  const [feesAmount, setFeesAmount] = useState(fee?.replace("₹", "").trim() || "");
   const [remarks, setRemarks] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [razorpayLink, setRazorpayLink] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const shortId = uuidv4().slice(0, 6).toUpperCase();
+    setInvoiceNumber(`#${shortId}`);
+  }, []);
+
+  const handleSave = async () => {
+    if (!feesAmount || isSaving) return;
+
+    try {
+      setIsSaving(true);
+
+      // 👇 Call your backend to create real Razorpay payment link
+      const res = await fetch("http://localhost:5000/create_payment_link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          amount: parseInt(feesAmount),
+          email: "parent@example.com", // optional; replace if available
+          contact: "9876543210"         // optional; replace if available
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.description || "Razorpay link failed");
+
+      const generatedLink = data.short_url;
+      setRazorpayLink(generatedLink);
+
+      const monthKey = new Date().toISOString().slice(0, 7);
+      const monthFormatted = getMonthString(monthKey); // YYYY-MM
+      await setDoc(doc(db, "fees", `${student_id}-${month}`), {
+        student_id,
+        invoice_number: invoiceNumber,
+        fee: Number(feesAmount),
+        sent: true,
+        paid: false,
+        overdue: false,
+        remarks: remarks || "",
+        month,
+        razorpay_link: generatedLink
+      });
+
+      alert("Invoice saved and Razorpay link generated.");
+      navigate("/fees/monthly-invoice");
+    } catch (err) {
+      console.error("Error saving invoice:", err);
+      alert("Failed to save invoice: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="edit-invoice-bg">
-      {/* Header */}
       <header className="edit-invoice-header">
         <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
           <img src={giraffeIcon} alt="logo" className="edit-invoice-logo" />
           <nav style={{ display: "flex", gap: "2rem" }}>
-            <span style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }} onClick={() => navigate('/home')}>Home</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/daily-reports')}>Daily Report</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/reports')}>Reports</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/child-report')}>Child Data</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/themes')}>Theme</span>
+            <span onClick={() => navigate('/home')} style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }}>Home</span>
+            <span onClick={() => navigate('/daily-reports')} style={{ color: "#6b7280", cursor: "pointer" }}>Daily Report</span>
+            <span onClick={() => navigate('/reports')} style={{ color: "#6b7280", cursor: "pointer" }}>Reports</span>
+            <span onClick={() => navigate('/child-report')} style={{ color: "#6b7280", cursor: "pointer" }}>Child Data</span>
+            <span onClick={() => navigate('/themes')} style={{ color: "#6b7280", cursor: "pointer" }}>Theme</span>
             <span style={{ color: "#8b5cf6", fontWeight: "500", cursor: "pointer" }}>Fees</span>
           </nav>
         </div>
         <div style={{ width: 44 }}></div>
       </header>
 
-      {/* Main Content */}
       <main className="edit-invoice-main">
         <h2 className="edit-invoice-title">Invoice Details</h2>
         <div className="edit-invoice-card">
           <div className="edit-invoice-row">
             <label className="edit-invoice-label">Name</label>
-            <input className="edit-invoice-input" value="Mimansa" readOnly />
+            <input className="edit-invoice-input" value={name || ""} readOnly />
           </div>
           <div className="edit-invoice-row">
             <label className="edit-invoice-label">Class</label>
-            <input className="edit-invoice-input" value="Nursery" readOnly />
+            <input className="edit-invoice-input" value={grade || ""} readOnly />
           </div>
           <div className="edit-invoice-row">
             <label className="edit-invoice-label">Invoice Number</label>
-            <input className="edit-invoice-input" value="#123456" readOnly />
+            <input className="edit-invoice-input" value={invoiceNumber} readOnly />
           </div>
           <div className="edit-invoice-row">
             <label className="edit-invoice-label">Fees Amount</label>
@@ -72,22 +132,22 @@ export default function EditInvoice() {
           </div>
           <div className="edit-invoice-row">
             <label className="edit-invoice-label">Razorpay Link</label>
-            <input className="edit-invoice-input" value="Generated automatically" readOnly />
+            <input className="edit-invoice-input" value={razorpayLink || "Will be generated on Save"} readOnly />
           </div>
           <div className="edit-invoice-btn-row">
-            <button
-              type="button"
-              className="edit-invoice-back-btn"
-              onClick={() => navigate('/fees/monthly-invoice')}
-            >
+            <button type="button" className="edit-invoice-back-btn" onClick={() => navigate('/fees/monthly-invoice')}>
               Back
             </button>
-            <button type="button" className="edit-invoice-save-btn">
-              Save Invoice
+            <button type="button" className="edit-invoice-save-btn" onClick={handleSave} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save and Send"}
             </button>
           </div>
         </div>
       </main>
+ 
+
+   
+
       {/* CSS */}
       <style>{`
         .edit-invoice-bg {

@@ -55,7 +55,12 @@ export default function Fees() {
 </div>
           </div>
           <div className="fees-card report" tabIndex={0}>
-            <span className="fees-card-label">Fees Report</span>
+          <span
+        className="fees-report-btn"
+        onClick={() => navigate("/fees-report")}
+      >
+        Fees Report
+      </span>
           </div>
         </div>
       </main>

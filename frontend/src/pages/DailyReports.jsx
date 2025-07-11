@@ -1,22 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Calendar, Search } from 'lucide-react';
 import giraffeIcon from "../assets/Logo.png";
 import { useNavigate } from 'react-router-dom';
-
-const studentsList = [
-  { id: 1, name: 'Mimansa' },
-  { id: 2, name: 'Rohan' },
-  { id: 3, name: 'Aarav' },
-];
+import { db } from '../firebase/firebase';
+import { collection, getDocs, Timestamp, doc, setDoc } from 'firebase/firestore';
 
 export default function DailyReports() {
   const navigate = useNavigate();
-  
+  const [studentsList, setStudentsList] = useState([]);
   const today = new Date().toISOString().slice(0, 10);
+
+  // Fetch students from Firestore (only present students)
+  useEffect(() => {
+    const fetchStudents = async () => {
+      // Get all attendance records for today
+      const attendanceSnapshot = await getDocs(collection(db, "attendance_records"));
+      const presentAttendance = attendanceSnapshot.docs
+        .map(doc => doc.data())
+        .filter(a => a.date === today && a.isPresent);
+      const presentStudentIds = presentAttendance.map(a => a.student_id);
+
+      // Get student details for present students
+      const studentsSnapshot = await getDocs(collection(db, "students"));
+      const allStudents = studentsSnapshot.docs.map(doc => doc.data());
+      const presentStudents = allStudents.filter(s => presentStudentIds.includes(s.student_id));
+      setStudentsList(presentStudents);
+    };
+    fetchStudents();
+  }, [today]);
 
   const [search, setSearch] = useState('');
   const [date, setDate] = useState(today);
   const [form, setForm] = useState({
+    student_id: '',
     name: '',
     inTime: '',
     outTime: '',
@@ -95,12 +111,50 @@ export default function DailyReports() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    alert("Report submitted!");
+    const selectedStudentId = form.student_id;
+    if (!selectedStudentId) {
+      alert("Please select a child before submitting the report.");
+      return;
+    }
+    const reportId = `${selectedStudentId}_${today}`;
+    const reportData = {
+      ...form,
+      student_id: selectedStudentId,
+      date: today,
+      submittedAt: Timestamp.now()
+    };
+    try {
+      await setDoc(doc(db, "daily_reports", reportId), reportData);
+      alert("Report submitted");
+      setForm({
+        student_id: '',
+        name: '',
+        inTime: '',
+        outTime: '',
+        snacks: '',
+        meal: '',
+        sleep: false,
+        sleepFrom: '',
+        sleepTo: '',
+        diaperChanged: false,
+        noDiaper: false,
+        diaperTimes: 1,
+        poops: 1,
+        feelings: [],
+        learning: '',
+        teacherNote: '',
+        ouch: { student: '', incident: '', comment: '' },
+        incident: { student: '', description: '', comment: '' },
+        theme: [],
+        themeDetails: Array(5).fill(''),
+      });
+    } catch (error) {
+      alert("Failed to submit report: " + error.message);
+    }
   };
 
-  // Header navigation
   const handleNav = (route) => {
     if (route) navigate(route);
   };
@@ -109,61 +163,57 @@ export default function DailyReports() {
     <div className="daily-bg">
       {/* Header */}
       <header className="daily-header">
-  <div className="header-left">
-    <img src={giraffeIcon} alt="logo" className="daily-logo" />
-    <nav className="nav-links">
-      <span className="nav-link" onClick={() => handleNav('/home')}>Home</span>
-      <span className="nav-active">Daily Reports</span>
-      <span
-    style={{ color: '#6b7280', cursor: 'pointer' }}
-    onClick={() => navigate('/reports')}
-  >
-    Reports
-  </span>
-      <span className="nav-link" onClick={() => handleNav('/child-report')}>Child Data</span>
-      <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/themes')}
->
-  Theme
-</span>
-
-      <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/fees')}
->
-  Fees
-</span>
-
-    </nav>
-  </div>
-  <div className="header-right">
-    <div className="search-calendar">
-      <div className="search-box">
-        <Search size={18} color="#6b7280" />
-        <input
-          type="text"
-          placeholder="Search"
-          className="search-input"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
-      <div className="calendar-box">
-        <Calendar size={18} color="#6b7280" />
-        <input
-          type="date"
-          className="calendar-input"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-        />
-      </div>
-    </div>
-    <div className="profile-avatar">👩</div>
-  </div>
-</header>
-      
-      
+        <div className="header-left">
+          <img src={giraffeIcon} alt="logo" className="daily-logo" />
+          <nav className="nav-links">
+            <span className="nav-link" onClick={() => handleNav('/home')}>Home</span>
+            <span className="nav-active">Daily Reports</span>
+            <span
+              style={{ color: '#6b7280', cursor: 'pointer' }}
+              onClick={() => navigate('/reports')}
+            >
+              Reports
+            </span>
+            <span className="nav-link" onClick={() => handleNav('/child-report')}>Child Data</span>
+            <span
+              style={{ color: '#6b7280', cursor: 'pointer' }}
+              onClick={() => navigate('/themes')}
+            >
+              Theme
+            </span>
+            <span
+              style={{ color: '#6b7280', cursor: 'pointer' }}
+              onClick={() => navigate('/fees')}
+            >
+              Fees
+            </span>
+          </nav>
+        </div>
+        <div className="header-right">
+          <div className="search-calendar">
+            <div className="search-box">
+              <Search size={18} color="#6b7280" />
+              <input
+                type="text"
+                placeholder="Search"
+                className="search-input"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="calendar-box">
+              <Calendar size={18} color="#6b7280" />
+              <input
+                type="date"
+                className="calendar-input"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="profile-avatar">👩</div>
+        </div>
+      </header>
 
       {/* Main Content */}
       <main className="daily-main">
@@ -174,13 +224,15 @@ export default function DailyReports() {
             <label>Name</label>
             <select
               className="input"
-              name="name"
-              value={form.name}
+              name="student_id"
+              value={form.student_id}
               onChange={handleChange}
             >
               <option value="">Select Child</option>
               {studentsList.map((s) => (
-                <option key={s.id} value={s.name}>{s.name}</option>
+                <option key={s.student_id} value={s.student_id}>
+                  {s.name} ({s.student_id})
+                </option>
               ))}
             </select>
           </div>
@@ -451,6 +503,8 @@ export default function DailyReports() {
           </div>
         </form>
       </main>
+ 
+
       {/* CSS */}
       <style>{`
         .daily-bg {

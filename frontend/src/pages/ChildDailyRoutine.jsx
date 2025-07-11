@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import giraffeIcon from "../assets/Logo.png"; // Update the path as needed
 import { useNavigate,useLocation } from "react-router-dom";
 import TabButtons from '../components/TabButtons';
-export default function ChildDailyRoutine() {
+export default function ChildDailyRoutine(childData, setChildData, onNext) {
   const navigate = useNavigate();
   const location = useLocation();
    const isActive = (path) => location.pathname === path;

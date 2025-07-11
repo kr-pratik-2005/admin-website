@@ -18,6 +18,9 @@ import FeesTable from './pages/FeesTable';
 import FeesReportTable from './pages/FeesReportTable';
 import MonthlyInvoice from './pages/MonthlyInvoice';
 import EditInvoice from './pages/EditInvoice';
+import ViewReport from './pages/ViewReport';
+import FeesReport from "./pages/FeesReport";
+
 function App() {
   return (
     <Router>
@@ -40,6 +43,8 @@ function App() {
         <Route path="/fees/report-table" element={<FeesReportTable />} />
         <Route path="/fees/monthly-invoice" element={<MonthlyInvoice />} />
         <Route path="/fees/edit-invoice" element={<EditInvoice />} />
+         <Route path="/fees-report" element={<FeesReport />} />
+        <Route path="/view-report/:studentId" element={<ViewReport />} />
         {/* Add this line */}
       </Routes>
     </Router>

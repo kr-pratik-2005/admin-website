@@ -1,9 +1,67 @@
-import React from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update path as needed
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import giraffeIcon from "../assets/Logo.png";
+import { useNavigate } from "react-router-dom";
+import { db } from "../firebase/firebase";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+
+function getTodayDateString() {
+  const today = new Date();
+  return today.toISOString().slice(0, 10); // "YYYY-MM-DD"
+}
 
 export default function DailyReportsList() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+  const fetchPresentStudents = async () => {
+    setLoading(true);
+    const today = getTodayDateString();
+
+    try {
+      // Step 1: Fetch attendance records for today where isPresent is true
+      const attendanceSnapshot = await getDocs(collection(db, "attendance_records"));
+      const presentAttendance = attendanceSnapshot.docs
+        .map(doc => doc.data())
+        .filter(a => a.date === today && a.isPresent);
+
+      const presentStudentIds = presentAttendance.map(a => a.student_id);
+
+      // Step 2: Fetch all student info
+      const studentsSnapshot = await getDocs(collection(db, "students"));
+      const allStudents = studentsSnapshot.docs.map(doc => doc.data());
+
+      // Step 3: Filter only present students
+      const presentStudents = allStudents.filter(s =>
+        presentStudentIds.includes(s.student_id)
+      );
+
+      // Step 4: For each present student, check if a report exists
+      const studentsWithReportStatus = await Promise.all(
+        presentStudents.map(async (student) => {
+          const reportId = `${student.student_id}_${today}`;
+          const reportRef = doc(db, "daily_reports", reportId);
+          const reportSnap = await getDoc(reportRef);
+
+          return {
+            ...student,
+            reportSubmitted: reportSnap.exists(),
+          };
+        })
+      );
+
+      setStudents(studentsWithReportStatus);
+    } catch (error) {
+      console.error("Error fetching reports:", error);
+    }
+
+    setLoading(false);
+  };
+
+  fetchPresentStudents();
+}, []);
+
 
   return (
     <div className="daily-bg">
@@ -12,37 +70,12 @@ export default function DailyReportsList() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
           <img src={giraffeIcon} alt="logo" className="daily-logo" />
           <nav style={{ display: 'flex', gap: '2rem' }}>
-            <span
-              style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }}
-              onClick={() => window.location.href = '/home'}
-            >Home</span>
-            <span
-            // #8b5cf6
-              style={{ color: '#6b7280',  cursor: 'pointer' }}
-              onClick={() => window.location.href = '/daily-reports'}
-            >Daily Report</span>
-            <span
-              style={{ color: '#6b7280', cursor: 'pointer' }}
-              onClick={() => window.location.href = '/child-report'}
-            >Child Data</span>
-            <span
-              style={{ color: '#8b5cf6',fontWeight: '500', cursor: 'pointer' }}
-              onClick={() => window.location.href = '/reports'}
-            >Reports</span>
-          <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/themes')}
->
-  Theme
-</span>
-
-            <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/fees')}
->
-  Fees
-</span>
-
+            <span style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }} onClick={() => navigate('/home')}>Home</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/daily-reports')}>Daily Report</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/child-report')}>Child Data</span>
+            <span style={{ color: '#8b5cf6', fontWeight: '500', cursor: 'pointer' }} onClick={() => navigate('/reports')}>Reports</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/themes')}>Theme</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/fees')}>Fees</span>
           </nav>
         </div>
         <div style={{ width: 44 }}></div>
@@ -52,25 +85,39 @@ export default function DailyReportsList() {
       <main className="daily-main">
         <h2 className="daily-title">Daily Reports</h2>
         <div className="daily-report-list">
-          {Array(6)
-            .fill(0)
-            .map((_, i) => (
-              <div className="daily-report-row" key={i}>
+          {loading ? (
+            <div>Loading...</div>
+          ) : students.length === 0 ? (
+            <div>No students are present today.</div>
+          ) : (
+            students.map((student) => (
+              <div className="daily-report-row" key={student.student_id}>
                 <div className="child-avatar" />
                 <div className="child-info">
-                  <div className="child-name">Mimansa</div>
+                  <div className="child-name">{student.name}</div>
                 </div>
                 <div className="report-actions">
-                  <button className="edit-btn">Edit</button>
-                  <button className="view-btn">View Report</button>
+                  {student.reportSubmitted ? (
+                    <>
+                      <button className="view-btn" onClick={() => navigate(`/view-report/${student.student_id}`)}>
+                        View Report
+                      </button>
+                    </>
+                  ) : (
+                    <span className="not-completed">Report Not Completed</span>
+                  )}
                 </div>
               </div>
-            ))}
+            ))
+          )}
         </div>
         <div className="back-btn-row">
-          <button className="back-btn" onClick={() => window.location.href = '/reports'}>Back to Reports</button>
+          <button className="back-btn" onClick={() => navigate('/reports')}>Back to Reports</button>
         </div>
       </main>
+  
+
+
       {/* CSS */}
       <style>{`
         .daily-bg {

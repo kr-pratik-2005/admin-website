@@ -1,61 +1,60 @@
-import React from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update path as needed
+import React, { useEffect, useState } from "react";
+import giraffeIcon from "../assets/Logo.png";
 import { useNavigate } from "react-router-dom";
+import { db } from "../firebase/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 export default function FeesMasterTable() {
   const navigate = useNavigate();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Example data; replace with your real data as needed
-  const rows = [
-    {
-      avatar: "", // Add avatar URL or leave blank for placeholder
-      name: "Mimansa",
-      class: "Playgroup",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Nursery",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Playgroup",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Playgroup",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Nursery",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Playgroup",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    }
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      // Fetch students
+      const studentsSnapshot = await getDocs(collection(db, "students"));
+      const students = studentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Fetch fees (assuming only one doc with the fee value)
+      const feesSnapshot = await getDocs(collection(db, "fees"));
+      let feeAmount = "";
+      if (!feesSnapshot.empty) {
+        // Use the first fee document found
+        const feeDoc = feesSnapshot.docs[0].data();
+        feeAmount = feeDoc.fee ? `₹ ${feeDoc.fee}` : "";
+      }
+
+      // Build rows (include student_id!)
+      const formattedRows = students.map(student => ({
+        student_id: student.student_id, // <-- include this
+        avatar: student.avatar || "",
+        name: student.name || "",
+        class: student.grade || "",
+        fees: feeAmount,
+        frequency: "Monthly",
+        dateOfJoin: student.joined_date
+          ? new Date(student.joined_date.seconds
+              ? student.joined_date.seconds * 1000
+              : student.joined_date
+            ).toLocaleDateString("en-US", {
+              month: "short",
+              day: "2-digit",
+              year: "numeric"
+            })
+          : "",
+      }));
+
+      const gradeOrder = { "Playgroup": 1, "Nursery": 2, "Pre primary I": 3 };
+      formattedRows.sort((a, b) => (gradeOrder[a.class] || 99) - (gradeOrder[b.class] || 99));
+      setRows(formattedRows);
+      setLoading(false);
+    };
+
+    fetchData();
+  }, []);
 
   return (
     <div className="fees-master-bg">
@@ -91,38 +90,49 @@ export default function FeesMasterTable() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, idx) => (
-                <tr
-                  key={idx}
-                  className={
-                    idx % 3 === 0
-                      ? "row-pink"
-                      : idx % 3 === 1
-                      ? "row-yellow"
-                      : "row-orange"
-                  }
-                >
-                  <td>
-                    <div className="fees-avatar-name">
-                      <div className="fees-avatar">
-                        {/* Placeholder for avatar, can use <img src={row.avatar} ... /> if available */}
-                        <span role="img" aria-label="avatar">🧒</span>
-                      </div>
-                      <span>{row.name}</span>
-                    </div>
-                  </td>
-                  <td>{row.class}</td>
-                  <td>{row.fees}</td>
-                  <td>{row.frequency}</td>
-                  <td>{row.dateOfJoin}</td>
-                  <td>
-                    <div className="fees-action-btns">
-                      <button className="fees-edit-btn">Edit</button>
-                      <button className="fees-view-btn">View Report</button>
-                    </div>
-                  </td>
+              {loading ? (
+                <tr>
+                  <td colSpan={6}>Loading...</td>
                 </tr>
-              ))}
+              ) : (
+                rows.map((row, idx) => (
+                  <tr
+                    key={row.student_id || idx}
+                    className={
+                      idx % 3 === 0
+                        ? "row-pink"
+                        : idx % 3 === 1
+                        ? "row-yellow"
+                        : "row-orange"
+                    }
+                  >
+                    <td>
+                      <div className="fees-avatar-name">
+                        <div className="fees-avatar">
+                          <span role="img" aria-label="avatar">🧒</span>
+                        </div>
+                        <span>{row.name}</span>
+                      </div>
+                    </td>
+                    <td>{row.class}</td>
+                    <td>{row.fees}</td>
+                    <td>{row.frequency}</td>
+                    <td>{row.dateOfJoin}</td>
+                    <td>
+                      <div className="fees-action-btns">
+                        <button className="fees-edit-btn">Edit</button>
+                        <button
+                          className="fees-view-btn"
+                          onClick={() => navigate(`/view-report/${row.student_id}`)}
+                          disabled={!row.student_id}
+                        >
+                          View Report
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -130,6 +140,11 @@ export default function FeesMasterTable() {
           <button className="fees-back-btn" onClick={() => navigate('/fees')}>Back</button>
         </div>
       </main>
+ 
+
+      
+ 
+
       {/* CSS */}
       <style>{`
         .fees-master-bg {

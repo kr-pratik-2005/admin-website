@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import giraffeIcon from "../assets/Logo.png"; // Update the path as needed
 import { useNavigate,useLocation  } from 'react-router-dom';
 
-export default function ChildReport() {
+export default function ChildReport(childData, setChildData, onNext) {
          const navigate = useNavigate();
          const location = useLocation();
    const isActive = (path) => {
@@ -139,89 +139,106 @@ export default function ChildReport() {
     </div>
         <form className="child-form" onSubmit={handleSubmit}>
           <div className="form-section">
-            <div className="section-title">
-              <span className="section-icon">!</span>
-              Basic Information
-            </div>
-            <div className="form-group">
-              <label>Name</label>
-              <input
-                className="input"
-                type="text"
-                name="name"
-                placeholder="Enter child's name"
-                value={form.name}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>DOB</label>
-                <div className="dob-row">
-                  <input
-                    className="input"
-                    type="date"
-                    name="dob"
-                    value={form.dob}
-                    onChange={handleChange}
-                  />
-                  <input
-                    className="input"
-                    type="time"
-                    name="dobTime"
-                    value={form.dobTime}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Blood Group</label>
-                <select
-                  className="input"
-                  name="bloodGroup"
-                  value={form.bloodGroup}
-                  onChange={handleChange}
-                >
-                  <option value="">Select</option>
-                  {bloodGroups.map((bg) => (
-                    <option key={bg} value={bg}>{bg}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Any nick name or preferred name</label>
-              <input
-                className="input"
-                type="text"
-                name="nickname"
-                placeholder="Enter nickname"
-                value={form.nickname}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="form-group">
-              <label>Language spoken at home</label>
-              <input
-                className="input"
-                type="text"
-                name="language"
-                placeholder="Enter language"
-                value={form.language}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="form-btn-row">
-              <button
-  type="button"
-  className="next-btn"
-  onClick={() => navigate('/child-details')}
->
-  Next
-</button>
-
-            </div>
+      <div className="section-title">
+        <span className="section-icon">1</span>
+        Basic Information
+      </div>
+      <div className="form-group">
+        <label>Name</label>
+        <input
+          className="input"
+          type="text"
+          name="name"
+          placeholder="Enter child's name"
+          value={childData.name}
+          onChange={e =>
+            setChildData(prev => ({
+              ...prev,
+              name: e.target.value
+            }))
+          }
+        />
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label>DOB</label>
+          <div className="dob-row">
+            <input
+              className="input"
+              type="date"
+              name="dob"
+              value={childData.dob}
+              onChange={e =>
+                setChildData(prev => ({
+                  ...prev,
+                  dob: e.target.value
+                }))
+              }
+            />
           </div>
+        </div>
+        <div className="form-group">
+          <label>Blood Group</label>
+          <select
+            className="input"
+            name="blood_group"
+            value={childData.blood_group}
+            onChange={e =>
+              setChildData(prev => ({
+                ...prev,
+                blood_group: e.target.value
+              }))
+            }
+          >
+            <option value="">Select</option>
+            {bloodGroups.map((bg) => (
+              <option key={bg} value={bg}>{bg}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="form-group">
+        <label>Any nick name or preferred name</label>
+        <input
+          className="input"
+          type="text"
+          name="nick_name"
+          placeholder="Enter nickname"
+          value={childData.nick_name}
+          onChange={e =>
+            setChildData(prev => ({
+              ...prev,
+              nick_name: e.target.value
+            }))
+          }
+        />
+      </div>
+      <div className="form-group">
+        <label>Language spoken at home</label>
+        <input
+          className="input"
+          type="text"
+          name="language_spoken_at_home"
+          placeholder="Enter language"
+          value={childData.language_spoken_at_home}
+          onChange={e =>
+            setChildData(prev => ({
+              ...prev,
+              language_spoken_at_home: e.target.value
+            }))
+          }
+        />
+      </div>
+      <div className="form-btn-row">
+        <button
+          type="button"
+          className="next-btn"
+          onClick={onNext} // Use the onNext prop to go to the next step
+        >
+          Next
+        </button>
+      </div>
+    </div>
         </form>
       </main>
       {/* CSS */}

@@ -1,87 +1,81 @@
-import React from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update path as needed
+import React, { useEffect, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../firebase/firebase";
 import { useNavigate } from "react-router-dom";
+import giraffeIcon from "../assets/Logo.png";
+
+function getCurrentMonthRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-based
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const firstDay = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const lastDay = `${year}-${String(month + 1).padStart(2, "0")}-${String(totalDays).padStart(2, "0")}`;
+  return { firstDay, lastDay, totalDays };
+}
 
 export default function FeesTable() {
   const navigate = useNavigate();
+  const [rows, setRows] = useState([]);
 
-  // Example data; replace with your real data as needed
-  const rows = [
-    {
-      avatar: "", // Add avatar URL or leave blank for placeholder
-      name: "Mimansa",
-      class: "Playgroup",
-      attendance: "20/30",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Nursery",
-      attendance: "30/30",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Playgroup",
-      attendance: "10/30",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Playgroup",
-      attendance: "20/30",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Nursery",
-      attendance: "30/30",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    },
-    {
-      avatar: "",
-      name: "Mimansa",
-      class: "Playgroup",
-      attendance: "10/30",
-      fees: "₹ 5000",
-      frequency: "Monthly",
-      dateOfJoin: "Jun 07, 2025"
-    }
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      const studentsSnapshot = await getDocs(collection(db, "students"));
+      const students = studentsSnapshot.docs.map(doc => doc.data());
+
+      const feesSnapshot = await getDocs(collection(db, "fees"));
+      const fees = feesSnapshot.docs.map(doc => doc.data());
+
+      const attendanceSnapshot = await getDocs(collection(db, "attendance_records"));
+      const attendanceRecords = attendanceSnapshot.docs.map(doc => doc.data());
+
+      const { firstDay, lastDay, totalDays } = getCurrentMonthRange();
+
+      const rowsData = fees.map(fee => {
+        const student = students.find(s => s.student_id === fee.student_id);
+
+        const attendanceForStudent = attendanceRecords.filter(
+          a =>
+            a.student_id === fee.student_id &&
+            a.date >= firstDay &&
+            a.date <= lastDay
+        );
+        const totalPresent = attendanceForStudent.filter(a => a.isPresent).length;
+
+        return {
+          student_id: fee.student_id,
+          name: student?.name || "N/A",
+          grade: student?.grade || "N/A",
+          attendance: `${totalPresent}/${totalDays}`,
+          fees: fee.fee || "N/A",
+          frequency: fee.frequency || "Monthly",
+          dateOfJoin: student?.joined_date
+            ? new Date(
+                student.joined_date.seconds
+                  ? student.joined_date.seconds * 1000
+                  : student.joined_date
+              ).toLocaleDateString("en-US", {
+                month: "short",
+                day: "2-digit",
+                year: "numeric"
+              })
+            : "N/A"
+        };
+      });
+
+      const gradeOrder = { "Playgroup": 1, "Nursery": 2, "Pre primary I": 3 };
+      rowsData.sort(
+        (a, b) => (gradeOrder[a.grade] || 99) - (gradeOrder[b.grade] || 99)
+      );
+
+      setRows(rowsData);
+    };
+
+    fetchData();
+  }, []);
 
   return (
     <div className="fees-table-bg">
-      {/* Header */}
-      <header className="fees-header">
-        <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
-          <img src={giraffeIcon} alt="logo" className="fees-logo" />
-          <nav style={{ display: "flex", gap: "2rem" }}>
-            <span style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }} onClick={() => navigate('/home')}>Home</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/daily-reports')}>Daily Report</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/reports')}>Reports</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/child-report')}>Child Data</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/themes')}>Theme</span>
-            <span style={{ color: "#8b5cf6", fontWeight: "500", cursor: "pointer" }}>Fees</span>
-          </nav>
-        </div>
-        <div style={{ width: 44  }}></div>
-      </header>
-
-      {/* Main Content */}
       <main className="fees-table-main">
         <h2 className="fees-table-title">Fees Table</h2>
         <div className="fees-table-container">
@@ -98,7 +92,7 @@ export default function FeesTable() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, idx) => (
+              {rows.map((student, idx) => (
                 <tr
                   key={idx}
                   className={
@@ -114,28 +108,36 @@ export default function FeesTable() {
                       <div className="fees-avatar">
                         <span role="img" aria-label="avatar">🧒</span>
                       </div>
-                      <span>{row.name}</span>
+                      <span>{student.name}</span>
                     </div>
                   </td>
-                  <td>{row.class}</td>
-                  <td>{row.attendance}</td>
+                  <td>{student.grade}</td>
+                  <td>{student.attendance}</td>
                   <td>
-                    <input className="fees-input" value={row.fees} readOnly />
+                    <input className="fees-input" value={student.fees} readOnly />
                   </td>
                   <td>
-                    <select className="fees-input" value={row.frequency} readOnly>
+                    <select className="fees-input" value={student.frequency} readOnly>
                       <option>Monthly</option>
                     </select>
                   </td>
                   <td>
-                    <input className="fees-input" value={row.dateOfJoin} readOnly />
+                    <input className="fees-input" value={student.dateOfJoin} readOnly />
                   </td>
                   <td>
                     <div className="fees-action-btns">
                       <button className="fees-edit-btn">Edit</button>
-<button
+                      
+                      <button
   className="fees-view-btn"
-  onClick={() => navigate('/fees/report-table')}
+  onClick={() => {
+    console.log("Navigating with student_id:", student.student_id); // ✅ Add this line
+    navigate('/fees/report-table', {
+      state: {
+        student_id: student.student_id,
+      }
+    });
+  }}
 >
   View Report
 </button>
@@ -148,9 +150,16 @@ export default function FeesTable() {
           </table>
         </div>
         <div className="fees-back-row">
-          <button className="fees-back-btn" onClick={() => navigate('/fees')}>Back</button>
+          <button className="fees-back-btn" onClick={() => navigate('/fees')}>
+            Back
+          </button>
         </div>
       </main>
+ 
+
+
+ 
+
       {/* CSS */}
       <style>{`
         .fees-table-bg {

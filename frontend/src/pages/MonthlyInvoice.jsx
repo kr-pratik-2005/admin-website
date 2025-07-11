@@ -1,105 +1,87 @@
-import React, { useState } from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update path as needed
+import React, { useEffect, useState } from "react";
+import giraffeIcon from "../assets/Logo.png";
 import { useNavigate } from "react-router-dom";
+import { db } from "../firebase/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
-const sampleInvoices = [
-  {
-    id: 1,
-    name: "Mimansa",
-    avatar: "", // You can add avatar image path here
-    class: "Playgroup",
-    invoice: "#123456",
-    fees: "₹ 5000",
-    attendance: "20/30",
-    sent: true,
-    paid: true,
-    overdue: false
-  },
-  {
-    id: 2,
-    name: "Mimansa",
-    avatar: "",
-    class: "Nursery",
-    invoice: "#123456",
-    fees: "₹ 5000",
-    attendance: "30/30",
-    sent: true,
-    paid: true,
-    overdue: false
-  },
-  {
-    id: 3,
-    name: "Mimansa",
-    avatar: "",
-    class: "Playgroup",
-    invoice: "#123456",
-    fees: "₹ 5000",
-    attendance: "10/30",
-    sent: false,
-    paid: false,
-    overdue: false
-  },
-  {
-    id: 4,
-    name: "Mimansa",
-    avatar: "",
-    class: "Playgroup",
-    invoice: "#123456",
-    fees: "₹ 5000",
-    attendance: "20/30",
-    sent: true,
-    paid: false,
-    overdue: true
-  },
-  {
-    id: 5,
-    name: "Mimansa",
-    avatar: "",
-    class: "Nursery",
-    invoice: "#123456",
-    fees: "₹ 5000",
-    attendance: "30/30",
-    sent: true,
-    paid: false,
-    overdue: true
-  },
-  {
-    id: 6,
-    name: "Mimansa",
-    avatar: "",
-    class: "Playgroup",
-    invoice: "#123456",
-    fees: "₹ 5000",
-    attendance: "10/30",
-    sent: true,
-    paid: false,
-    overdue: false
-  }
-];
+export function getMonthString(monthStr) {
+  const [year, month] = monthStr.split("-").map(Number);
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  return `${monthNames[month - 1]} ${year}`;
+}
 
 export default function MonthlyInvoice() {
   const navigate = useNavigate();
   const [month, setMonth] = useState("2025-06");
+  const [rows, setRows] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const studentsSnapshot = await getDocs(collection(db, "students"));
+      const students = studentsSnapshot.docs.map(doc => doc.data());
+
+      const monthStr = getMonthString(month);
+      const invoicesSnapshot = await getDocs(
+        query(collection(db, "fees"), where("month", "==", monthStr))
+      );
+      const invoices = invoicesSnapshot.docs.map(doc => doc.data());
+
+      const [year, monthNum] = month.split("-").map(Number);
+      const totalDays = new Date(year, monthNum, 0).getDate();
+      const firstDay = `${year}-${String(monthNum).padStart(2, "0")}-01`;
+      const lastDay = `${year}-${String(monthNum).padStart(2, "0")}-${String(totalDays).padStart(2, "0")}`;
+      const attendanceSnapshot = await getDocs(collection(db, "attendance_records"));
+      const attendanceRecords = attendanceSnapshot.docs.map(doc => doc.data());
+
+      const rowsData = students.map((student, idx) => {
+        const invoice = invoices.find(inv => inv.student_id === student.student_id);
+
+        const attendanceForStudent = attendanceRecords.filter(
+          a =>
+            a.student_id === student.student_id &&
+            a.date >= firstDay &&
+            a.date <= lastDay
+        );
+        const totalPresent = attendanceForStudent.filter(a => a.isPresent).length;
+
+        return {
+          id: idx + 1,
+          student_id: student.student_id,
+          name: student.name,
+          class: student.grade,
+          invoice: invoice ? invoice.invoice_number : "",
+          fees: invoice ? `₹ ${invoice.fee || invoice.amount}` : (student.fees ? `₹ ${student.fees}` : "N/A"),
+          attendance: `${totalPresent}/${totalDays}`,
+          sent: invoice ? !!invoice.sent : false,
+          paid: invoice ? !!invoice.paid : false,
+          overdue: invoice ? !!invoice.overdue : false,
+        };
+      });
+
+      const gradeOrder = { "Playgroup": 1, "Nursery": 2, "Pre primary I": 3 };
+      rowsData.sort((a, b) => (gradeOrder[a.class] || 99) - (gradeOrder[b.class] || 99));
+
+      setRows(rowsData);
+    };
+
+    fetchData();
+  }, [month]);
+
+  // Filter rows based on search term (name or class)
+  const filteredRows = rows.filter(row =>
+    (row.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (row.class || "").toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="invoice-bg">
-      {/* Header */}
       <header className="invoice-header">
-        <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
-          <img src={giraffeIcon} alt="logo" className="invoice-logo" />
-          <nav style={{ display: "flex", gap: "2rem" }}>
-            <span style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }} onClick={() => navigate('/home')}>Home</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/daily-reports')}>Daily Report</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/reports')}>Reports</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/child-report')}>Child Data</span>
-            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate('/themes')}>Theme</span>
-            <span style={{ color: "#8b5cf6", fontWeight: "500", cursor: "pointer" }}>Fees</span>
-          </nav>
-        </div>
-        <div style={{ width: 44 }}></div>
+        {/* ...header code... */}
       </header>
-
-      {/* Main Content */}
       <main className="invoice-main">
         <h2 className="invoice-title">Monthly Invoice</h2>
         <div className="invoice-month-row">
@@ -109,6 +91,24 @@ export default function MonthlyInvoice() {
             className="invoice-month-input"
             value={month}
             onChange={e => setMonth(e.target.value)}
+          />
+        </div>
+        {/* Search Box */}
+        <div style={{ width: "100%", maxWidth: 500, marginBottom: "1.5rem" }}>
+          <input
+            type="text"
+            placeholder="Search by name or class"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "0.6rem 1rem",
+              borderRadius: "7px",
+              border: "1px solid #e5e7eb",
+              background: "#f7f9fa",
+              fontSize: "1rem",
+              marginBottom: 0
+            }}
           />
         </div>
         <div className="invoice-table-container">
@@ -122,11 +122,11 @@ export default function MonthlyInvoice() {
                 <th>Attendance</th>
                 <th>Sent Status</th>
                 <th>Paid Status</th>
-                <th>Edit</th>
+                <th>Send Invoice</th>
               </tr>
             </thead>
             <tbody>
-              {sampleInvoices.map((row, idx) => (
+              {filteredRows.map((row, idx) => (
                 <tr
                   key={row.id}
                   className={
@@ -146,7 +146,7 @@ export default function MonthlyInvoice() {
                     </div>
                   </td>
                   <td>{row.class}</td>
-                  <td>{row.invoice}</td>
+                  <td>{row.invoice || "N/A"}</td>
                   <td>
                     <input className="invoice-input" value={row.fees} readOnly />
                   </td>
@@ -168,7 +168,23 @@ export default function MonthlyInvoice() {
                     )}
                   </td>
                   <td>
-                    <button className="invoice-edit-btn">Edit</button>
+                    <button
+                      className="invoice-edit-btn"
+                      onClick={() =>
+                        navigate('/fees/edit-invoice', {
+                          state: {
+                            student_id: row.student_id,
+                            name: row.name,
+                            grade: row.class,
+                            fee: row.fees,
+                            month: getMonthString(month)
+                          }
+                        })
+                      }
+                      disabled={row.sent}
+                    >
+                      Send Invoice
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -177,14 +193,18 @@ export default function MonthlyInvoice() {
         </div>
         <div className="invoice-btn-row">
           <button className="invoice-back-btn" onClick={() => navigate('/fees')}>Back</button>
-<button
-  className="invoice-send-btn"
-  onClick={() => navigate('/fees/edit-invoice')}
->
-  Send Invoice
-</button>
         </div>
       </main>
+  
+
+
+
+
+
+
+ 
+
+
       {/* CSS */}
       <style>{`
         .invoice-bg {
