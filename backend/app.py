@@ -26,7 +26,9 @@ load_dotenv()
 app = Flask(__name__)
 
 # ---------- CORS Middleware ----------
-ALLOWED_ORIGINS = ["http://localhost:3000", "https://parent-dashboard-chi.vercel.app"]
+ALLOWED_ORIGINS = ["http://localhost:3000",   # Admin site
+    "http://localhost:3001",   # Parent Dashboard (you missed this)
+    "https://parent-dashboard-chi.vercel.app" ]
 
 @app.before_request
 def handle_preflight():

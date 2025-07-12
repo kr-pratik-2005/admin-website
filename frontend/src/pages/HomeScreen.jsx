@@ -3,85 +3,108 @@ import { Bell, Calendar, Camera } from 'lucide-react';
 import giraffeIcon from "../assets/Logo.png";
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/firebase';
-import { 
-  collection, getDocs, query, where, doc, updateDoc 
+import {
+  collection, getDocs, query, where, doc, updateDoc, addDoc, onSnapshot, serverTimestamp
 } from 'firebase/firestore';
 
 const HomeScreen = () => {
   const [students, setStudents] = useState([]);
   const [attendanceMap, setAttendanceMap] = useState({});
+  const [showReplyBox, setShowReplyBox] = useState(false);
+  const [replyToMessage, setReplyToMessage] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [allMessages, setAllMessages] = useState([]);
+
   const navigate = useNavigate();
 
-  // Get today's date string in YYYY-MM-DD
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
 
-  // Get current month range
   const year = today.getFullYear();
-  const month = today.getMonth(); // 0-indexed
+  const month = today.getMonth();
   const totalDays = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
   const lastDay = new Date(year, month, totalDays).toISOString().split('T')[0];
 
-  // Fetch students for today on mount
- useEffect(() => {
-  const fetchAndMarkAbsent = async () => {
-    // 1. Fetch all students
-    const studentsSnapshot = await getDocs(collection(db, "students"));
-    const allStudents = studentsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    // 2. For each student, ensure attendance record for today exists (mark absent if not)
-    for (const student of allStudents) {
-      const attendanceQ = query(
-        collection(db, "attendance_records"),
-        where("student_id", "==", student.student_id),
-        where("date", "==", todayStr)
-      );
-      const attendanceSnapshot = await getDocs(attendanceQ);
-
-      if (attendanceSnapshot.empty) {
-        // No attendance record for today: mark as absent
-        await collection(db, "attendance_records").add({
-          student_id: student.student_id,
-          date: todayStr,
-          isPresent: false
-        });
-        // Update isPresent in students collection for UI consistency
-        await updateDoc(doc(db, "students", student.id), { isPresent: false });
-      }
-    }
-
-    // 3. Fetch students for today (with today's date in their "date" field)
+  // Fetch all messages for inbox and count unread
+  useEffect(() => {
     const q = query(
-      collection(db, "students"),
-      where("date", "==", todayStr)
+      collection(db, "messages"),
+      where("to", "==", "demouser@gmail.com")
     );
-    const querySnapshot = await getDocs(q);
-    const studentsToday = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    setStudents(studentsToday);
-  };
 
-  fetchAndMarkAbsent();
-}, [todayStr]);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort: unread on top, then by latest
+      msgs.sort((a, b) => {
+        if (!a.read && b.read) return -1;
+        if (a.read && !b.read) return 1;
+        // If both same read status, sort by time
+        return (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0);
+      });
+      setAllMessages(msgs);
+      setUnreadCount(msgs.filter(msg => !msg.read).length);
+    });
 
+    return () => unsubscribe();
+  }, []);
 
-  // Fetch attendance records for current month for all students
+  // Fetch students and mark absent if not marked
+  useEffect(() => {
+    const fetchAndMarkAbsent = async () => {
+      try {
+        const studentsSnapshot = await getDocs(collection(db, "students"));
+        const allStudents = studentsSnapshot.docs.map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        }));
+
+        for (const student of allStudents) {
+          const attendanceQ = query(
+            collection(db, "attendance_records"),
+            where("student_id", "==", student.student_id),
+            where("date", "==", todayStr)
+          );
+          const attendanceSnapshot = await getDocs(attendanceQ);
+
+          if (attendanceSnapshot.empty) {
+            await addDoc(collection(db, "attendance_records"), {
+              student_id: student.student_id,
+              date: todayStr,
+              isPresent: false
+            });
+            await updateDoc(doc(db, "students", student.id), { isPresent: false });
+          }
+        }
+
+        // After attendance updates, set students
+        const querySnapshot = await getDocs(collection(db, "students"));
+        const studentsToday = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setStudents(studentsToday);
+      } catch (err) {
+        console.error("Error during fetchAndMarkAbsent:", err);
+      }
+    };
+
+    fetchAndMarkAbsent();
+  }, [todayStr]);
+
   useEffect(() => {
     const fetchAttendanceRecords = async () => {
-      // Get all attendance_records for this month
       const q = query(
         collection(db, "attendance_records"),
         where("date", ">=", firstDay),
         where("date", "<=", lastDay)
       );
       const querySnapshot = await getDocs(q);
-      // Map: student_id -> number of days present
       const map = {};
       querySnapshot.forEach(docSnap => {
         const { student_id, isPresent } = docSnap.data();
@@ -93,22 +116,48 @@ const HomeScreen = () => {
     fetchAttendanceRecords();
   }, [firstDay, lastDay, students]);
 
-  // Grade order for sorting
   const gradeOrder = {
     "Playgroup": 1,
     "Nursery": 2,
     "Pre primary I": 3
   };
 
-  // Sort students by grade order
   const sortedStudents = [...students].sort((a, b) => {
     return (gradeOrder[a.grade] || 99) - (gradeOrder[b.grade] || 99);
   });
 
-  // Grades to show in dashboard cards
+  const markMessageAsRead = async (id) => {
+    try {
+      await updateDoc(doc(db, "messages", id), { read: true });
+      setAllMessages(prev => prev.map(msg => msg.id === id ? { ...msg, read: true } : msg));
+      setUnreadCount(prev => prev - 1);
+    } catch (err) {
+      console.error("Error marking message as read:", err);
+    }
+  };
+
+  const sendReply = async () => {
+    if (!replyText.trim()) return;
+    try {
+      await addDoc(collection(db, 'messages'), {
+        from: 'demouser@gmail.com',
+        to: replyToMessage.from,
+        message: replyText,
+        timestamp: serverTimestamp(),
+        read: false
+      });
+      alert('✅ Reply sent!');
+      setReplyText('');
+      setShowReplyBox(false);
+      setReplyToMessage(null);
+    } catch (err) {
+      console.error('Error sending reply:', err);
+      alert('❌ Failed to send reply');
+    }
+  };
+
   const grades = ["Playgroup", "Nursery", "Pre primary I"];
 
-  // Calculate per-grade stats
   const attendanceByGrade = grades.map(grade => {
     const studentsInGrade = students.filter(s => s.grade === grade);
     const presentCount = studentsInGrade.filter(s => s.isPresent).length;
@@ -126,47 +175,38 @@ const HomeScreen = () => {
     };
   });
 
-  // Calculate overall stats
   const totalPresent = students.filter(s => s.isPresent).length;
   const totalStudents = students.length;
 
-  // Dynamic attendance update
   const handleAttendanceChange = async (studentId, isPresent, studentObj) => {
     try {
-      // Update isPresent in students collection (for UI consistency)
       await updateDoc(doc(db, "students", studentId), { isPresent });
 
-      // Update or create attendance_records for today
-      // Find if attendance_records entry exists for this student and today
       const attendanceQ = query(
         collection(db, "attendance_records"),
         where("student_id", "==", studentObj.student_id),
         where("date", "==", todayStr)
       );
       const attendanceSnapshot = await getDocs(attendanceQ);
+
       if (!attendanceSnapshot.empty) {
-        // Update existing record
-        attendanceSnapshot.forEach(async (docSnap) => {
-          await updateDoc(doc(db, "attendance_records", docSnap.id), { isPresent });
-        });
+        const docRef = doc(db, "attendance_records", attendanceSnapshot.docs[0].id);
+        await updateDoc(docRef, { isPresent });
       } else {
-        // Create new record
-        await collection(db, "attendance_records").add({
+        await addDoc(collection(db, "attendance_records"), {
           student_id: studentObj.student_id,
           date: todayStr,
           isPresent
         });
       }
 
-      // Update UI
       setStudents(prev =>
         prev.map(s =>
           s.id === studentId ? { ...s, isPresent } : s
         )
       );
-      // Refetch attendance records for the month
-      // (Optional: you can trigger fetchAttendanceRecords here if needed)
     } catch (error) {
+      console.error("Error updating attendance:", error);
       alert("Failed to update attendance: " + error.message);
     }
   };
@@ -174,6 +214,7 @@ const HomeScreen = () => {
   const handleDailyReportClick = () => {
     navigate('/daily-reports');
   };
+
   const handleChildDataClick = () => {
     navigate('/child-report');
   };
@@ -232,17 +273,134 @@ const HomeScreen = () => {
           </nav>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{
-            backgroundColor: '#f3f4f6',
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <span>Inbox</span>
-            <Bell size={16} />
+          <div style={{ position: 'relative' }}>
+            <div
+              style={{
+                position: 'relative',
+                backgroundColor: '#f3f4f6',
+                padding: '0.5rem 1rem',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer'
+              }}
+              onClick={() => setInboxOpen(prev => !prev)}
+            >
+              <span>Inbox</span>
+              <Bell size={16} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  backgroundColor: 'red',
+                  color: 'white',
+                  borderRadius: '50%',
+                  padding: '2px 6px',
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}>
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+
+            {/* Inbox dropdown */}
+            {inboxOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '2.5rem',
+                right: 0,
+                backgroundColor: 'white',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                borderRadius: '8px',
+                zIndex: 1000,
+                width: '350px',
+                maxHeight: '350px',
+                overflowY: 'auto',
+                padding: '1rem'
+              }}>
+                <h4 style={{ marginBottom: '0.5rem', color: '#374151' }}>Inbox</h4>
+                {allMessages.length === 0 ? (
+                  <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>No messages</p>
+                ) : (
+                  allMessages.map(msg => (
+                    <div
+                      key={msg.id}
+                      style={{
+                        borderBottom: '1px solid #e5e7eb',
+                        paddingBottom: '0.5rem',
+                        marginBottom: '0.5rem',
+                        backgroundColor: !msg.read ? '#fef9c3' : 'transparent',
+                        boxShadow: !msg.read ? '0 0 8px #fde047' : 'none',
+                        borderRadius: '6px'
+                      }}
+                    >
+                      <p style={{
+                        margin: '0.25rem 0',
+                        fontWeight: '500',
+                        color: !msg.read ? '#b45309' : '#374151'
+                      }}>
+                        From: {msg.from}
+                      </p>
+                      <p style={{
+                        margin: '0.25rem 0',
+                        fontWeight: !msg.read ? 'bold' : 'normal'
+                      }}>
+                        {msg.message}
+                      </p>
+                      <p style={{
+                        fontSize: '0.8rem',
+                        color: '#6b7280',
+                        margin: '0.25rem 0'
+                      }}>
+                        {msg.timestamp?.seconds
+                          ? new Date(msg.timestamp.seconds * 1000).toLocaleString()
+                          : ''}
+                      </p>
+                      {!msg.read && (
+                        <button
+                          onClick={() => markMessageAsRead(msg.id)}
+                          style={{
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '0.25rem 0.5rem',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                            marginRight: '0.5rem',
+                            marginTop: '0.25rem'
+                          }}
+                        >
+                          Mark as read
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setReplyToMessage(msg);
+                          setShowReplyBox(true);
+                        }}
+                        style={{
+                          backgroundColor: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '0.25rem 0.5rem',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Reply
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
+
           <div style={{
             width: '40px',
             height: '40px',
@@ -275,43 +433,52 @@ const HomeScreen = () => {
             Welcome <span style={{ fontWeight: 'bold' }}>Hema,</span>
           </h1>
           <div style={{ display: 'flex', gap: '1rem' }}>
-            <button style={{
-              backgroundColor: 'white',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              padding: '0.5rem 1rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
+            <button
+              style={{
+                backgroundColor: 'white',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                padding: '0.5rem 1rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+              onClick={() => navigate('/gallery')}
+            >
               <Camera size={16} />
               Gallery
             </button>
-            <button style={{
-              backgroundColor: 'white',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              padding: '0.5rem 1rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
+            <button
+              style={{
+                backgroundColor: 'white',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                padding: '0.5rem 1rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+              onClick={() => navigate('/holidays')}
+            >
               <Calendar size={16} />
               Holidays 🎉
             </button>
-            <button style={{
-              backgroundColor: 'white',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              padding: '0.5rem 1rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              Logout ↗
+            <button
+              style={{
+                backgroundColor: 'white',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                padding: '0.5rem 1rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+              onClick={() => navigate('/')}
+            >
+              Logout
             </button>
           </div>
         </div>
@@ -539,7 +706,7 @@ const HomeScreen = () => {
                         padding: '1rem',
                         color: '#374151'
                       }}>
-                        {presentDays} / {totalDays} 
+                        {presentDays} / {totalDays}
                       </td>
                       <td style={{
                         padding: '1rem',
@@ -591,6 +758,58 @@ const HomeScreen = () => {
           </div>
         </div>
       </main>
+
+      {/* Reply Modal */}
+      {showReplyBox && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '12px',
+            width: '400px',
+            maxWidth: '90%'
+          }}>
+            <h3 style={{ marginBottom: '1rem' }}>Reply to {replyToMessage?.from}</h3>
+            <textarea
+              rows={4}
+              style={{ width: '100%', marginBottom: '1rem' }}
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Type your reply..."
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              <button onClick={sendReply} style={{
+                backgroundColor: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '0.5rem 1rem',
+                cursor: 'pointer'
+              }}>
+                Send
+              </button>
+              <button onClick={() => setShowReplyBox(false)} style={{
+                backgroundColor: '#e5e7eb',
+                color: '#374151',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '0.5rem 1rem',
+                cursor: 'pointer'
+              }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

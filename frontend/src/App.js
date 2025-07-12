@@ -20,7 +20,8 @@ import MonthlyInvoice from './pages/MonthlyInvoice';
 import EditInvoice from './pages/EditInvoice';
 import ViewReport from './pages/ViewReport';
 import FeesReport from "./pages/FeesReport";
-
+import HolidayModal from './pages/HolidayModal';
+import Gallery from './pages/Gallery';
 function App() {
   return (
     <Router>
@@ -45,6 +46,8 @@ function App() {
         <Route path="/fees/edit-invoice" element={<EditInvoice />} />
          <Route path="/fees-report" element={<FeesReport />} />
         <Route path="/view-report/:studentId" element={<ViewReport />} />
+        <Route path="/holidays" element={<HolidayModal />} />
+        <Route path="/gallery" element={<Gallery />} />
         {/* Add this line */}
       </Routes>
     </Router>
