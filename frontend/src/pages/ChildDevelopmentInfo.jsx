@@ -1,89 +1,60 @@
-import React, { useState } from "react";
-import giraffeIcon from "../assets/Logo.png";
+import React, { useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import giraffeIcon from "../assets/Logo.png";
+import { ChildDataContext } from "./ChildProfileFlow";
 
-export default function ChildDevelopmentInfo(childData, setChildData, onNext) {
+export default function ChildDevelopmentInfo() {
   const navigate = useNavigate();
   const location = useLocation();
-  const isActive = (path) => {
-    const normalize = (p) => p.replace(/\/+$/, "");
-    return normalize(location.pathname) === normalize(path);
-  };
+  const { childData, setChildData } = useContext(ChildDataContext);
 
-  const [form, setForm] = useState({
-    developmentalInfo: "",
-    pottyTrained: false,
-    sleepTrained: false,
-    eatIndependently: false,
-    attendedDaycare: false,
-    previousDaycare: "",
-    likesDislikes: "",
-    activities: "",
-    triggers: "",
-    behaviour: "",
-    extraInfo: ""
-  });
+  const development = childData?.development || {};
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setForm((prev) => ({
+    setChildData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value
+      development: {
+        ...prev.development,
+        [name]: type === "checkbox" ? checked : value,
+      },
     }));
   };
 
   const handleRadio = (name, value) => {
-    setForm((prev) => ({
+    setChildData((prev) => ({
       ...prev,
-      [name]: value
+      development: {
+        ...prev.development,
+        [name]: value,
+      },
     }));
   };
 
-  const handleNext = (e) => {
-    e.preventDefault();
-    // Add navigation to next step here if needed
-    navigate('/daily-routine');
+  const isActive = (path) => location.pathname === path;
+
+  const handleNext = () => {
+    navigate("/child-profile/daily-routine");
+  };
+
+  const handleBack = () => {
+    navigate("/child-profile/medical-info");
   };
 
   return (
+     <>
     <div className="child-bg">
       {/* Header */}
       <header className="child-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
           <img src={giraffeIcon} alt="logo" className="login-logo" />
-          <nav style={{ display: 'flex', gap: '2rem' }}>
-            <span
-              style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }}
-              onClick={() => navigate('/home')}
-            >Home</span>
-            <span
-              style={{ color: '#6b7280', cursor: 'pointer' }}
-              onClick={() => navigate('/daily-reports')}
-            >Daily Report</span>
-            <span
-              style={{ color: '#8b5cf6', fontWeight: '500', cursor: 'pointer' }}
-              onClick={() => navigate('/child-report')}
-            >Child Data</span>
-            <span
-    style={{ color: '#6b7280', cursor: 'pointer' }}
-    onClick={() => navigate('/reports')}
-  >
-    Reports
-  </span>
-          <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/themes')}
->
-  Theme
-</span>
-
-       <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/fees')}
->
-  Fees
-</span>
-
+          <nav style={{ display: "flex", gap: "2rem" }}>
+            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate("/home")}>Home</span>
+            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate("/daily-reports")}>Daily Report</span>
+            <span style={{ color: "#8b5cf6", fontWeight: "500", cursor: "pointer" }}>Child Data</span>
+            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate("/reports")}>Reports</span>
+            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate("/themes")}>Theme</span>
+            <span style={{ color: "#6b7280", cursor: "pointer" }} onClick={() => navigate("/fees")}>Fees</span>
           </nav>
         </div>
         <div className="header-right">
@@ -94,121 +65,64 @@ export default function ChildDevelopmentInfo(childData, setChildData, onNext) {
       {/* Main Content */}
       <main className="child-main">
         <h2 className="main-title">Child Data</h2>
+
+        {/* Tab Bar */}
         <div className="tab-bar">
-          <button
-            className={`tab${isActive('/child-report') ? ' tab-active' : ''}`}
-            onClick={() => navigate('/child-report')}
-          >
-            Basic Information
-          </button>
-          <button
-            className={`tab${isActive('/child-details') ? ' tab-active' : ''}`}
-            onClick={() => navigate('/child-details')}
-          >
-            Emergency Details
-          </button>
-          <button
-            className={`tab${isActive('/medical-info') ? ' tab-active' : ''}`}
-            onClick={() => navigate('/medical-info')}
-          >
-            Medical Information
-          </button>
-          <button
-            className={`tab${isActive('/development-info') ? ' tab-active' : ''}`}
-            onClick={() => navigate('/development-info')}
-          >
-            Developmental Information
-          </button>
-          <button
-            className={`tab${isActive('/daily-routine') ? ' tab-active' : ''}`}
-            onClick={() => navigate('/daily-routine')}
-          >
-            Daily Routine
-          </button>
-          <button
-            className={`tab${isActive('/additional-info') ? ' tab-active' : ''}`}
-            onClick={() => navigate('/additional-info')}
-          >
-            Additional Information
-          </button>
+          <button className={`tab${isActive("/child-profile/child-report") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/child-report")}>Basic Information</button>
+          <button className={`tab${isActive("/child-profile/child-details") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/child-details")}>Emergency Details</button>
+          <button className={`tab${isActive("/child-profile/medical-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/medical-info")}>Medical Information</button>
+          <button className={`tab${isActive("/child-profile/development-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/development-info")}>Developmental Information</button>
+          <button className={`tab${isActive("/child-profile/daily-routine") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/daily-routine")}>Daily Routine</button>
+          <button className={`tab${isActive("/child-profile/additional-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/additional-info")}>Additional Information</button>
         </div>
-        <form className="child-form" onSubmit={handleNext}>
+
+        {/* Form */}
+        <form className="child-form">
           <div className="form-section">
             <div className="section-title">
               <span className="section-icon">4</span>
               Developmental Information
             </div>
+
             <div className="form-group">
               <label>Developmental Information</label>
               <textarea
                 className="input"
                 name="developmentalInfo"
                 placeholder="Type any keywords"
-                value={form.developmentalInfo}
+                value={development.developmentalInfo || ""}
                 onChange={handleChange}
                 rows={2}
               />
             </div>
-            <div className="form-group radio-row">
-              <label>Child potty trained</label>
-              <div className="radio-btns">
-                <button
-                  type="button"
-                  className={form.pottyTrained ? "radio-btn selected" : "radio-btn"}
-                  onClick={() => handleRadio("pottyTrained", true)}
-                >Yes</button>
-                <button
-                  type="button"
-                  className={!form.pottyTrained ? "radio-btn selected" : "radio-btn"}
-                  onClick={() => handleRadio("pottyTrained", false)}
-                >No</button>
+
+            {[ 
+              { key: "pottyTrained", label: "Child potty trained" },
+              { key: "sleepTrained", label: "Child sleep trained" },
+              { key: "eatIndependently", label: "Child able to eat independently" },
+              { key: "attendedDaycare", label: "Child attended daycare before" }
+            ].map((item) => (
+              <div className="form-group radio-row" key={item.key}>
+                <label>{item.label}</label>
+                <div className="radio-btns">
+                  <button
+                    type="button"
+                    className={development[item.key] === true ? "radio-btn selected" : "radio-btn"}
+                    onClick={() => handleRadio(item.key, true)}
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    className={development[item.key] === false ? "radio-btn selected" : "radio-btn"}
+                    onClick={() => handleRadio(item.key, false)}
+                  >
+                    No
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="form-group radio-row">
-              <label>Child sleep trained</label>
-              <div className="radio-btns">
-                <button
-                  type="button"
-                  className={form.sleepTrained ? "radio-btn selected" : "radio-btn"}
-                  onClick={() => handleRadio("sleepTrained", true)}
-                >Yes</button>
-                <button
-                  type="button"
-                  className={!form.sleepTrained ? "radio-btn selected" : "radio-btn"}
-                  onClick={() => handleRadio("sleepTrained", false)}
-                >No</button>
-              </div>
-            </div>
-            <div className="form-group radio-row">
-              <label>Child able to eat independently</label>
-              <div className="radio-btns">
-                <button
-                  type="button"
-                  className={form.eatIndependently ? "radio-btn selected" : "radio-btn"}
-                  onClick={() => handleRadio("eatIndependently", true)}
-                >Yes</button>
-                <button
-                  type="button"
-                  className={!form.eatIndependently ? "radio-btn selected" : "radio-btn"}
-                  onClick={() => handleRadio("eatIndependently", false)}
-                >No</button>
-              </div>
-            </div>
-            <div className="form-group radio-row">
-              <label>Child attended daycare before</label>
-              <div className="radio-btns">
-                <button
-                  type="button"
-                  className={form.attendedDaycare ? "radio-btn selected" : "radio-btn"}
-                  onClick={() => handleRadio("attendedDaycare", true)}
-                >Yes</button>
-                <button
-                  type="button"
-                  className={!form.attendedDaycare ? "radio-btn selected" : "radio-btn"}
-                  onClick={() => handleRadio("attendedDaycare", false)}
-                >No</button>
-              </div>
-            </div>
+            ))}
+
             <div className="form-group">
               <label>Previous daycare details</label>
               <input
@@ -216,10 +130,11 @@ export default function ChildDevelopmentInfo(childData, setChildData, onNext) {
                 type="text"
                 name="previousDaycare"
                 placeholder="Type any keywords"
-                value={form.previousDaycare}
+                value={development.previousDaycare || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
               <label>Child have any specific like or dislike</label>
               <input
@@ -227,70 +142,70 @@ export default function ChildDevelopmentInfo(childData, setChildData, onNext) {
                 type="text"
                 name="likesDislikes"
                 placeholder="Type any keywords"
-                value={form.likesDislikes}
+                value={development.likesDislikes || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
-              <label>Activities that the child enjoys doing?</label>
+              <label>Activities that the child enjoys doing</label>
               <input
                 className="input"
                 type="text"
                 name="activities"
                 placeholder="Type any keywords"
-                value={form.activities}
+                value={development.activities || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
-              <label>
-                Any triggers that usually lead to outbursts or meltdowns the child with calming strategy
-              </label>
+              <label>Any triggers that lead to meltdowns + calming strategy</label>
               <input
                 className="input"
                 type="text"
                 name="triggers"
                 placeholder="Type any keywords"
-                value={form.triggers}
+                value={development.triggers || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
-              <label>Child behaviour that affect other Children</label>
+              <label>Child behaviour that affects other Children</label>
               <input
                 className="input"
                 type="text"
                 name="behaviour"
                 placeholder="Type any keywords"
-                value={form.behaviour}
+                value={development.behaviour || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
-              <label>
-                Information regarding child development, learning style that you like us to know
-              </label>
+              <label>Information regarding learning style or behavior</label>
               <input
                 className="input"
                 type="text"
                 name="extraInfo"
                 placeholder="Type any keywords"
-                value={form.extraInfo}
+                value={development.extraInfo || ""}
                 onChange={handleChange}
               />
             </div>
+
+            {/* Navigation Buttons */}
             <div className="form-btn-row">
-              <button
-                type="button"
-                className="next-btn"
-                onClick={() => navigate('/daily-routine')}
-              >
-                Next
-              </button>
+              <button type="button" className="back-btn" onClick={handleBack}>Back</button>
+              <button type="button" className="next-btn" onClick={handleNext}>Next</button>
             </div>
           </div>
         </form>
       </main>
+      </div>
+
+
       <style>{`
         .child-bg {
           min-height: 100vh;
@@ -466,6 +381,7 @@ export default function ChildDevelopmentInfo(childData, setChildData, onNext) {
           }
         }
       `}</style>
-    </div>
+    
+    </>
   );
 }

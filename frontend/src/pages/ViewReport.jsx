@@ -1,14 +1,11 @@
-// ViewReport.jsx
-
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { db } from "../firebase/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import giraffeIcon from "../assets/Logo.png";
 
 function getTodayDateString() {
   const today = new Date();
-  return today.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  return today.toISOString().slice(0, 10);
 }
 
 export default function ViewReport() {
@@ -20,7 +17,6 @@ export default function ViewReport() {
 
   useEffect(() => {
     const fetchReport = async () => {
-      setLoading(true);
       const reportId = `${studentId}_${today}`;
       const reportRef = doc(db, "daily_reports", reportId);
       const reportSnap = await getDoc(reportRef);
@@ -34,148 +30,113 @@ export default function ViewReport() {
     fetchReport();
   }, [studentId, today]);
 
-  if (loading) {
-    return <div className="view-report-loading">Loading...</div>;
-  }
+  if (loading) return <div style={{ textAlign: "center", marginTop: "3rem" }}>Loading...</div>;
 
   if (!report) {
     return (
-      <div className="view-report-bg">
-        <div className="view-report-header">
-          <img src={giraffeIcon} alt="logo" className="view-report-logo" />
-          <h2>Daily Report</h2>
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <h2 style={styles.title}>Daily Report</h2>
+          <p style={{ margin: "1rem 0" }}>No report found for today.</p>
+          <button style={styles.button} onClick={() => navigate("/fees")}>Back</button>
         </div>
-        <div className="view-report-main">
-          <div className="no-report-rectangle">
-            <img src={giraffeIcon} alt="Mimansa Logo" className="no-report-logo" />
-            <div className="no-report-text">No report found</div>
-          </div>
-          <button className="view-report-back-btn" onClick={() => navigate('/daily-reports')}>Back</button>
-        </div>
-        <style>{`
-          .no-report-rectangle {
-            margin: 2.5rem auto 0 auto;
-            background: #fff;
-            border-radius: 18px;
-            box-shadow: 0 4px 32px rgba(0,0,0,0.08);
-            padding: 60px 32px 60px 32px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-width: 320px;
-            min-height: 220px;
-            max-width: 400px;
-            position: relative;
-          }
-          .no-report-logo {
-            width: 70px;
-            height: 70px;
-            object-fit: contain;
-            margin-bottom: 24px;
-            display: block;
-          }
-          .no-report-text {
-            font-size: 1.25rem;
-            color: #888;
-            font-weight: 600;
-            text-align: center;
-            letter-spacing: 0.03em;
-          }
-   
- 
+      </div>
+    );
+  }
 
-        .view-report-bg {
-          min-height: 100vh;
-          background: #f5f7fa;
-        }
-        .view-report-header {
-          background: #fff;
-          padding: 1.5rem 2rem 1rem 2rem;
-          border-bottom: 1px solid #e0e6ed;
-          display: flex;
-          align-items: center;
-          gap: 1.5rem;
-        }
-        .view-report-logo {
-          width: 44px;
-          height: 44px;
-          object-fit: contain;
-        }
-        .view-report-header h2 {
-          font-size: 1.45rem;
-          font-weight: 600;
-          color: #374151;
-          margin: 0;
-        }
-        .view-report-main {
-          max-width: 650px;
-          margin: 2.5rem auto 0 auto;
-          background: #fff;
-          border-radius: 18px;
-          box-shadow: 0 4px 32px rgba(0,0,0,0.08);
-          padding: 36px 32px 32px 32px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
-        .view-report-card {
-          width: 100%;
-        }
-        .view-report-row {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: flex-start;
-          margin-bottom: 1.1rem;
-          gap: 1.5rem;
-        }
-        .view-report-label {
-          min-width: 130px;
-          color: #888;
-          font-weight: 500;
-          font-size: 1.01rem;
-        }
-        .view-report-value {
-          color: #374151;
-          font-weight: 600;
-          font-size: 1.08rem;
-          min-width: 120px;
-        }
-        .view-report-back-btn {
-          margin-top: 2.2rem;
-          background: #ffd86b;
-          color: #fff;
-          border: none;
-          border-radius: 10px;
-          padding: 0.9rem 2.2rem;
-          font-size: 1.08rem;
-          font-weight: 600;
-          cursor: pointer;
-          box-shadow: 0 2px 8px rgba(255,216,107,0.09);
-          transition: background 0.18s;
-        }
-        .view-report-back-btn:hover {
-          background: #ffc700;
-        }
-        .view-report-loading,
-        .view-report-empty {
-          font-size: 1.18rem;
-          color: #888;
-          text-align: center;
-          margin: 3rem 0;
-        }
-        @media (max-width: 700px) {
-          .view-report-main {
-            padding: 16px 5vw 16px 5vw;
-            max-width: 99vw;
-          }
-          .view-report-label, .view-report-value {
-            min-width: 80px;
-            font-size: 0.97rem;
-          }
-        }
-      `}</style>
+  return (
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <h2 style={styles.title}>Daily Report for {report.name}</h2>
+
+        {renderRow("Date", report.date)}
+        {renderRow("In Time", report.inTime)}
+        {renderRow("Out Time", report.outTime)}
+        {renderRow("Snacks", report.snacks)}
+        {renderRow("Meal", report.meal)}
+        {renderRow("Slept", report.sleep ? "No" : `${report.sleepFrom} - ${report.sleepTo}`)}
+        {renderRow("Diaper Changed", report.diaperChanged ? "Yes" : "No")}
+        {renderRow("No Diaper", report.noDiaper ? "Yes" : "No")}
+        {renderRow("Diaper Times", report.diaperTimes)}
+        {renderRow("Poops", report.poops)}
+        {renderRow("Feelings", report.feelings?.join(", ") || "None")}
+        {renderRow("Learning", report.learning || "N/A")}
+        {renderRow("Teacher Note", report.teacherNote || "N/A")}
+
+        <hr style={styles.hr} />
+        <h4>Ouch Report</h4>
+        {renderRow("Student", report.ouch?.student || "N/A")}
+        {renderRow("Incident", report.ouch?.incident || "N/A")}
+        {renderRow("Comment", report.ouch?.comment || "N/A")}
+
+        <hr style={styles.hr} />
+        <h4>Incident Report</h4>
+        {renderRow("Student", report.incident?.student || "N/A")}
+        {renderRow("Description", report.incident?.description || "N/A")}
+        {renderRow("Comment", report.incident?.comment || "N/A")}
+
+        <hr style={styles.hr} />
+        <h4>Theme</h4>
+        {report.theme?.length > 0 ? (
+          report.theme.map((tag, i) =>
+            renderRow(tag, report.themeDetails?.[i] || "No detail")
+          )
+        ) : (
+          <p>No themes taught today.</p>
+        )}
+
+        <button style={styles.button} onClick={() => navigate("/fees")}>Back</button>
+      </div>
     </div>
   );
 }
+
+function renderRow(label, value) {
+  return (
+    <div style={styles.row}>
+      <strong>{label}:</strong> <span>{value}</span>
+    </div>
+  );
 }
+
+const styles = {
+  container: {
+    display: "flex",
+    justifyContent: "center",
+    padding: "2rem",
+    backgroundColor: "#f3f4f6",
+    minHeight: "100vh"
+  },
+  card: {
+    background: "#fff",
+    padding: "2rem",
+    borderRadius: "8px",
+    width: "100%",
+    maxWidth: "600px",
+    boxShadow: "0 0 10px rgba(0,0,0,0.1)"
+  },
+  title: {
+    textAlign: "center",
+    marginBottom: "1.5rem"
+  },
+  row: {
+    display: "flex",
+    justifyContent: "space-between",
+    margin: "0.5rem 0",
+    borderBottom: "1px solid #eee",
+    paddingBottom: "0.25rem"
+  },
+  hr: {
+    margin: "1.5rem 0"
+  },
+  button: {
+    marginTop: "2rem",
+    padding: "0.6rem 1.5rem",
+    backgroundColor: "#6366f1",
+    color: "#fff",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+    alignSelf: "center"
+  }
+};

@@ -1,29 +1,14 @@
-import React, { useState } from "react";
+import React, { useContext } from "react";
 import giraffeIcon from "../assets/Logo.png"; // Update the path as needed
-import { useNavigate,useLocation  } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ChildDataContext } from "./ChildProfileFlow"; // ✅ Update the path as needed
 
-export default function ChildReport(childData, setChildData, onNext) {
-         const navigate = useNavigate();
-         const location = useLocation();
-   const isActive = (path) => {
-  // Normalize both paths to avoid trailing slash issues
-  const normalize = (p) => p.replace(/\/+$/, '');
-  return normalize(location.pathname) === normalize(path);
-};
+export default function ChildReport() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { childData, setChildData } = useContext(ChildDataContext); // ✅ Get data from context
 
-     const handleDailyReportClick = () => {
-    navigate('/daily-reports'); // Adjust route path as needed
-  };
-  
- 
-  const [form, setForm] = useState({
-    name: "",
-    dob: "",
-    dobTime: "",
-    bloodGroup: "",
-    nickname: "",
-    language: "",
-  });
+  const isActive = (path) => location.pathname === path;
 
   const bloodGroups = [
     "A (+ve)", "A (-ve)",
@@ -34,213 +19,143 @@ export default function ChildReport(childData, setChildData, onNext) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setChildData((prev) => ({
+      ...prev,
+      report: {
+        ...prev.report,
+        [name]: value,
+      }
+    }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    alert("Child data saved!");
+  const reportData = childData?.report || {};
+
+  const handleNext = () => {
+    navigate("/child-profile/child-details"); // ✅ Go to next step
   };
 
   return (
     <div className="child-bg">
       {/* Header */}
- <header className="child-header">
-  <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-    <img src={giraffeIcon} alt="logo" className="login-logo" />
-    <nav style={{ display: 'flex', gap: '2rem' }}>
-      <span
-        style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }}
-        onClick={() => navigate('/home')}
-      >
-        Home
-      </span>
-      <span
-        style={{ color: '#6b7280', cursor: 'pointer' }}
-        onClick={handleDailyReportClick}
-      >
-        Daily Report
-      </span>
-      <span
-    style={{ color: '#6b7280', cursor: 'pointer' }}
-    onClick={() => navigate('/reports')}
-  >
-    Reports
-  </span>
-      <span
-        style={{ color: '#8b5cf6', fontWeight: '500', cursor: 'pointer' }}
-        
-      >
-        Child Data
-      </span>
-      <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/themes')}
->
-  Theme
-</span>
-
-      <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/fees')}
->
-  Fees
-</span>
-
-    </nav>
-  </div>
-  <div className="header-right">
-    <button className="add-btn">+ Add New Child</button>
-  </div>
-</header>
-
-
+      <header className="child-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+          <img src={giraffeIcon} alt="logo" className="login-logo" />
+          <nav style={{ display: 'flex', gap: '2rem' }}>
+            <span onClick={() => navigate('/home')} style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }}>Home</span>
+            <span onClick={() => navigate('/daily-reports')} style={{ color: '#6b7280', cursor: 'pointer' }}>Daily Report</span>
+            <span onClick={() => navigate('/reports')} style={{ color: '#6b7280', cursor: 'pointer' }}>Reports</span>
+            <span style={{ color: '#8b5cf6', fontWeight: '500' }}>Child Data</span>
+            <span onClick={() => navigate('/themes')} style={{ color: '#6b7280', cursor: 'pointer' }}>Theme</span>
+            <span onClick={() => navigate('/fees')} style={{ color: '#6b7280', cursor: 'pointer' }}>Fees</span>
+          </nav>
+        </div>
+        <div className="header-right">
+          <button className="add-btn">+ Add New Child</button>
+        </div>
+      </header>
 
       {/* Main Content */}
       <main className="child-main">
         <h2 className="main-title">Child Data</h2>
+
+        {/* Tab Bar */}
         <div className="tab-bar">
-      <button
-        className={`tab${isActive('/child-report') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-report')}
-      >
-        Basic Information
-      </button>
-      <button
-        className={`tab${isActive('/child-details') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-details')}
-      >
-        Emergency Details
-      </button>
-      <button
-        className={`tab${isActive('/medical-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/medical-info')}
-      >
-        Medical Information
-      </button>
-      <button
-        className={`tab${isActive('/development-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/development-info')}
-      >
-        Developmental Information
-      </button>
-      <button
-        className={`tab${isActive('/daily-routine') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/daily-routine')}
-      >
-        Daily Routine
-      </button>
-      <button
-        className={`tab${isActive('/additional-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/additional-info')}
-      >
-        Additional Information
-      </button>
-    </div>
-        <form className="child-form" onSubmit={handleSubmit}>
+          <button className={`tab${isActive("/child-profile/child-report") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/child-report")}>Basic Information</button>
+          <button className={`tab${isActive("/child-profile/child-details") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/child-details")}>Emergency Details</button>
+          <button className={`tab${isActive("/child-profile/medical-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/medical-info")}>Medical Information</button>
+          <button className={`tab${isActive("/child-profile/development-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/development-info")}>Developmental Information</button>
+          <button className={`tab${isActive("/child-profile/daily-routine") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/daily-routine")}>Daily Routine</button>
+          <button className={`tab${isActive("/child-profile/additional-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/additional-info")}>Additional Information</button>
+        </div>
+
+        {/* Form */}
+        <form className="child-form">
           <div className="form-section">
-      <div className="section-title">
-        <span className="section-icon">1</span>
-        Basic Information
-      </div>
-      <div className="form-group">
-        <label>Name</label>
-        <input
-          className="input"
-          type="text"
-          name="name"
-          placeholder="Enter child's name"
-          value={childData.name}
-          onChange={e =>
-            setChildData(prev => ({
-              ...prev,
-              name: e.target.value
-            }))
-          }
-        />
-      </div>
-      <div className="form-row">
-        <div className="form-group">
-          <label>DOB</label>
-          <div className="dob-row">
-            <input
-              className="input"
-              type="date"
-              name="dob"
-              value={childData.dob}
-              onChange={e =>
-                setChildData(prev => ({
-                  ...prev,
-                  dob: e.target.value
-                }))
-              }
-            />
+            <div className="section-title">
+              <span className="section-icon">1</span>
+              Basic Information
+            </div>
+
+            {/* Name */}
+            <div className="form-group">
+              <label>Name</label>
+              <input
+                className="input"
+                type="text"
+                name="name"
+                placeholder="Enter child's name"
+                value={reportData.name || ""}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* DOB and Blood Group */}
+            <div className="form-row">
+              <div className="form-group">
+                <label>DOB</label>
+                <input
+                  className="input"
+                  type="date"
+                  name="dob"
+                  value={reportData.dob || ""}
+                  min="1900-01-01"
+  max="2100-12-31"
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="form-group">
+                <label>Blood Group</label>
+                <select
+                  className="input"
+                  name="blood_group"
+                  value={reportData.blood_group || ""}
+                  onChange={handleChange}
+                >
+                  <option value="">Select</option>
+                  {bloodGroups.map((bg) => (
+                    <option key={bg} value={bg}>{bg}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Nick Name */}
+            <div className="form-group">
+              <label>Any nick name or preferred name</label>
+              <input
+                className="input"
+                type="text"
+                name="nick_name"
+                placeholder="Enter nickname"
+                value={reportData.nick_name || ""}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Language */}
+            <div className="form-group">
+              <label>Language spoken at home</label>
+              <input
+                className="input"
+                type="text"
+                name="language_spoken_at_home"
+                placeholder="Enter language"
+                value={reportData.language_spoken_at_home || ""}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Next */}
+            <div className="form-btn-row">
+              <button type="button" className="next-btn" onClick={handleNext}>
+                Next
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="form-group">
-          <label>Blood Group</label>
-          <select
-            className="input"
-            name="blood_group"
-            value={childData.blood_group}
-            onChange={e =>
-              setChildData(prev => ({
-                ...prev,
-                blood_group: e.target.value
-              }))
-            }
-          >
-            <option value="">Select</option>
-            {bloodGroups.map((bg) => (
-              <option key={bg} value={bg}>{bg}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="form-group">
-        <label>Any nick name or preferred name</label>
-        <input
-          className="input"
-          type="text"
-          name="nick_name"
-          placeholder="Enter nickname"
-          value={childData.nick_name}
-          onChange={e =>
-            setChildData(prev => ({
-              ...prev,
-              nick_name: e.target.value
-            }))
-          }
-        />
-      </div>
-      <div className="form-group">
-        <label>Language spoken at home</label>
-        <input
-          className="input"
-          type="text"
-          name="language_spoken_at_home"
-          placeholder="Enter language"
-          value={childData.language_spoken_at_home}
-          onChange={e =>
-            setChildData(prev => ({
-              ...prev,
-              language_spoken_at_home: e.target.value
-            }))
-          }
-        />
-      </div>
-      <div className="form-btn-row">
-        <button
-          type="button"
-          className="next-btn"
-          onClick={onNext} // Use the onNext prop to go to the next step
-        >
-          Next
-        </button>
-      </div>
-    </div>
         </form>
       </main>
+
+
       {/* CSS */}
       <style>{`
         .child-bg {

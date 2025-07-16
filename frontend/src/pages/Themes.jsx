@@ -1,56 +1,148 @@
-import React, { useState } from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update path as needed
+import React, { useState, useEffect } from "react";
+import giraffeIcon from "../assets/Logo.png";
 import { useNavigate } from 'react-router-dom';
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { db } from "../firebase/firebase";
+import { getAuth } from "firebase/auth";
 
 export default function Themes() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const auth = getAuth();
+  const user = auth.currentUser;
+  const teacherId = user?.email || "default_teacher";
+  const [checkedSections, setCheckedSections] = useState([]);
+  const toggleCheckbox = (section) => {
+  setCheckedSections(prev => 
+    prev.includes(section)
+      ? prev.filter(s => s !== section) // untick
+      : [...prev, section]              // tick
+  );
+};
 
-  const [theme, setTheme] = useState("Numbers");
-  const [category, setCategory] = useState("Numbers");
-  const [tags, setTags] = useState(["Animals", "Plants"]);
+
+  const [selectedClass, setSelectedClass] = useState("Playgroup");
+  const [theme, setTheme] = useState("");
+  const [category, setCategory] = useState("Language Development");
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return today.toISOString().slice(0, 10);
   });
-  const [themeOfDay, setThemeOfDay] = useState({
-    "Language Development": ["Animals", "Plants"],
-    "Numeracy Development": [],
-    "Fine motor center -Art": [],
-    "Gross motor center - Movement": [],
-    "Pretend play": [],
-    "Story Telling": [],
-  });
+
+  const [themeOfWeek, setThemeOfWeek] = useState(null);
+  const [themeOfDay, setThemeOfDay] = useState(null);
+
+  const sectionList = [
+    "Language Development",
+    "Numeracy Development",
+    "Fine motor center -Art",
+    "Gross motor center - Movement",
+    "Pretend play",
+    "Story Telling",
+  ];
+
+  const defaultStructure = sectionList.reduce((acc, section) => {
+    acc[section] = [];
+    return acc;
+  }, {});
+
+  const handleAddTag = () => {
+    if (!theme.trim()) return;
+
+    setThemeOfWeek(prev => {
+      const copy = { ...prev };
+      if (!copy[category]) copy[category] = [];
+      if (!copy[category].includes(theme.trim())) {
+        copy[category] = [...copy[category], theme.trim()];
+      }
+      return copy;
+    });
+
+    setThemeOfDay(prev => {
+      const copy = { ...prev };
+      if (!copy[category]) copy[category] = [];
+      if (!copy[category].includes(theme.trim())) {
+        copy[category] = [...copy[category], theme.trim()];
+      }
+      return copy;
+    });
+
+    setTheme("");
+  };
+
+  const handleRemoveTag = (section, tagToRemove, source) => {
+    if (source === "week") {
+      setThemeOfWeek(prev => ({
+        ...prev,
+        [section]: prev[section].filter(tag => tag !== tagToRemove)
+      }));
+      setThemeOfDay(prev => ({
+        ...prev,
+        [section]: prev[section]?.filter(tag => tag !== tagToRemove) || []
+      }));
+    } else if (source === "day") {
+      setThemeOfDay(prev => ({
+        ...prev,
+        [section]: prev[section].filter(tag => tag !== tagToRemove)
+      }));
+    }
+  };
+
+  const saveThemeData = async () => {
+    try {
+      await setDoc(doc(db, "weekly_tags", teacherId), {
+        themeOfWeek,
+      });
+
+      await setDoc(doc(db, "daily_themes", teacherId), {
+        [selectedDate]: themeOfDay,
+      }, { merge: true });
+
+      alert("Themes saved to Firebase ✅");
+    } catch (err) {
+      console.error("Error saving themes:", err);
+    }
+  };
+
+  useEffect(() => {
+    const loadThemeData = async () => {
+      try {
+        const weekSnap = await getDoc(doc(db, "weekly_tags", teacherId));
+        const weekData = weekSnap.exists() ? weekSnap.data().themeOfWeek : defaultStructure;
+        setThemeOfWeek(weekData);
+
+        const daySnap = await getDoc(doc(db, "daily_themes", teacherId));
+        const allDays = daySnap.exists() ? daySnap.data() : {};
+        const todayData = allDays[selectedDate] || structuredClone(weekData);
+        setThemeOfDay(todayData);
+      } catch (error) {
+        console.error("Error loading data:", error);
+        setThemeOfWeek(defaultStructure);
+        setThemeOfDay(defaultStructure);
+      }
+    };
+
+    loadThemeData();
+  }, [selectedDate]);
+
+  if (!themeOfWeek || !themeOfDay) return <div>Loading themes...</div>;
 
   return (
     <div className="themes-bg">
-      {/* Header */}
       <header className="themes-header">
-       <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
-  <img src={giraffeIcon} alt="logo" className="themes-logo" />
-  <nav style={{ display: "flex", gap: "2rem" }}>
-    <span style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }}>Home</span>
-    <span style={{ color: "#6b7280", cursor: "pointer" }}>Daily Report</span>
-    <span style={{ color: "#6b7280", cursor: "pointer" }}>Reports</span>
-    <span
-      style={{ color: "#6b7280", cursor: "pointer" }}
-      onClick={() => navigate('/child-report')}
-    >
-      Child Data
-    </span>
-    <span style={{ color: "#8b5cf6", fontWeight: "500", cursor: "pointer" }}>Theme</span>
-    <span
-      style={{ color: '#6b7280', cursor: 'pointer' }}
-      onClick={() => navigate('/fees')}
-    >
-      Fees
-    </span>
-  </nav>
-</div>
-
+        <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
+          <img src={giraffeIcon} alt="logo" className="themes-logo" />
+          <nav style={{ display: "flex", gap: "2rem" }}>
+            <span onClick={() => navigate("/home")} style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }}>Home</span>
+            <span onClick={() => navigate("/daily-reports")} style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }}>Daily Reports</span>
+            <span onClick={() => navigate("/reports")} style={{ color: "#6b7280", cursor: "pointer" }}>Reports</span>
+            <span onClick={() => navigate("/child-profile/child-report")} style={{ color: "#6b7280", cursor: "pointer" }}>Child Data</span>
+            <span style={{ color: "#8b5cf6", fontWeight: "500", cursor: "pointer" }}>Theme</span>
+            <span onClick={() => navigate("/fees")} style={{ color: "#6b7280", cursor: "pointer" }}>Fees</span>
+          </nav>
+        </div>
         <div style={{ width: 44 }}></div>
       </header>
 
-      {/* Main Content */}
       <main className="themes-main">
         <h2 className="themes-title">Theme</h2>
 
@@ -62,7 +154,18 @@ export default function Themes() {
               <option>3 - 4 years</option>
               <option>4 - 5 years</option>
             </select>
-            <input className="themes-input" style={{ width: 180 }} value="Playgroup" readOnly />
+            <select
+              className="themes-input"
+              style={{ width: 180 }}
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+            >
+              <option value="Playgroup">Playgroup</option>
+              <option value="Nursery">Nursery</option>
+              <option value="Pre-primary-I">Pre-primary-I</option>
+              <option value="Pre-primary-II">Pre-primary-II</option>
+              <option value="Pre-primary-III">Pre-primary-III</option>
+            </select>
           </div>
 
           <div className="themes-row">
@@ -95,34 +198,30 @@ export default function Themes() {
               onChange={e => setCategory(e.target.value)}
               style={{ width: 180 }}
             >
-              <option>Numbers</option>
-              <option>Letters</option>
-              <option>Shapes</option>
+              {sectionList.map(s => (
+                <option key={s}>{s}</option>
+              ))}
             </select>
-            <button className="add-tag-btn">Add Tag</button>
+            <button className="add-tag-btn" type="button" onClick={handleAddTag}>Add Tag</button>
           </div>
         </div>
 
-        {/* Table */}
+        {/* Section Tags Table */}
         <div className="themes-table-outer">
           <div className="themes-table">
             <div className="themes-table-row themes-table-header">
               <div className="themes-table-cell themes-table-cell-title">Section</div>
               <div className="themes-table-cell themes-table-cell-tags">Tags</div>
             </div>
-            {[
-              "Language Development",
-              "Numeracy Development",
-              "Fine motor center -Art",
-              "Gross motor center - Movement",
-              "Pretend play",
-              "Story Telling",
-            ].map(section => (
+            {sectionList.map(section => (
               <div className="themes-table-row" key={section}>
                 <div className="themes-table-cell themes-table-cell-title">{section}</div>
                 <div className="themes-table-cell themes-table-cell-tags">
-                  {(themeOfDay[section] || ["Animals", "Plants"]).map(tag => (
-                    <span className="themes-tag" key={tag}>{tag} <span className="tag-x">×</span></span>
+                  {themeOfWeek[section]?.map(tag => (
+                    <span className="themes-tag" key={tag}>
+                      {tag}
+                      <span className="tag-x" onClick={() => handleRemoveTag(section, tag, "week")} style={{ cursor: "pointer" }}>×</span>
+                    </span>
                   ))}
                 </div>
               </div>
@@ -130,23 +229,24 @@ export default function Themes() {
           </div>
         </div>
 
-        {/* Theme of the day */}
+        {/* Theme of the Day */}
         <div className="themes-day">
           <div className="themes-day-title">Theme of the day</div>
-          {[
-            "Language Development",
-            "Numeracy Development",
-            "Fine motor center -Art",
-            "Gross motor center - Movement",
-            "Pretend play",
-            "Story Telling",
-          ].map(section => (
+          {sectionList.map(section => (
             <div className="themes-day-row" key={section}>
-              <input type="checkbox" className="themes-checkbox" checked={section === "Language Development"} readOnly />
+              <input
+  type="checkbox"
+  className="themes-checkbox"
+  checked={checkedSections.includes(section)}
+  onChange={() => toggleCheckbox(section)}
+/>
               <span className="themes-day-label">{section}</span>
               <div className="themes-day-tags">
-                {(section === "Language Development" ? ["Animals", "Plants"] : []).map(tag => (
-                  <span className="themes-tag" key={tag}>{tag} <span className="tag-x">×</span></span>
+                {themeOfDay[section]?.map(tag => (
+                  <span className="themes-tag" key={tag}>
+                    {tag}
+                    <span className="tag-x" onClick={() => handleRemoveTag(section, tag, "day")} style={{ cursor: "pointer" }}>×</span>
+                  </span>
                 ))}
               </div>
             </div>
@@ -155,9 +255,10 @@ export default function Themes() {
 
         <div className="themes-form-btns">
           <button className="cancel-btn">Cancel</button>
-          <button className="save-btn">Save</button>
+          <button className="save-btn" onClick={saveThemeData}>Save</button>
         </div>
       </main>
+ 
 
       {/* CSS */}
       <style>{`

@@ -3,28 +3,99 @@ import { Bell, Calendar, Search } from 'lucide-react';
 import giraffeIcon from "../assets/Logo.png";
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/firebase';
-import { collection, getDocs, Timestamp, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, Timestamp, doc, setDoc,query,where } from 'firebase/firestore';
+import { useLocation } from 'react-router-dom';
+import { getDoc } from 'firebase/firestore';
+import { getAuth } from "firebase/auth";
 
 export default function DailyReports() {
   const navigate = useNavigate();
   const [studentsList, setStudentsList] = useState([]);
   const today = new Date().toISOString().slice(0, 10);
+  const location = useLocation();
+  function formatInTime(rawTime) {
+  if (!rawTime) return '';
+  const date = new Date(`1970-01-01T${rawTime}`);
+  if (isNaN(date.getTime())) return ''; // invalid format fallback
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+function convertTo24HourTime(time12h) {
+  if (!time12h) return '';
+  const [time, modifier] = time12h.split(' ');
+  let [hours, minutes] = time.split(':');
 
-  // Fetch students from Firestore (only present students)
+  if (modifier.toLowerCase() === 'pm' && hours !== '12') {
+    hours = String(parseInt(hours, 10) + 12);
+  }
+  if (modifier.toLowerCase() === 'am' && hours === '12') {
+    hours = '00';
+  }
+
+  return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+}
+
+
+useEffect(() => {
+  const fetchThemeOfDay = async () => {
+    try {
+      const auth = getAuth(); // 👈 if not already imported, add this
+      const teacherId = auth.currentUser?.email || "default_teacher";
+      const ref = doc(db, "daily_themes", teacherId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const dayThemes = snap.data()[today];
+        if (dayThemes) {
+          // Flatten all tags from all selected categories into a single list
+          const allTags = Object.values(dayThemes).flat();
+          setForm(prev => ({ ...prev, theme: allTags }));
+        }
+      }
+    } catch (err) {
+      console.error("Error loading theme of the day:", err);
+    }
+  };
+
+  fetchThemeOfDay();
+}, [today]);
+
+
+
+  // Fetch students from Firestore (only present students with inTime)
+  useEffect(() => {
+  if (location.state) {
+    const { student_id, name, inTime } = location.state;
+    setForm(prev => ({
+      ...prev,
+      student_id,
+      name,
+      inTime
+    }));
+  }
+}, [location.state]);
+
   useEffect(() => {
     const fetchStudents = async () => {
-      // Get all attendance records for today
-      const attendanceSnapshot = await getDocs(collection(db, "attendance_records"));
-      const presentAttendance = attendanceSnapshot.docs
-        .map(doc => doc.data())
-        .filter(a => a.date === today && a.isPresent);
-      const presentStudentIds = presentAttendance.map(a => a.student_id);
+      try {
+        // Get all attendance records for today
+        const attendanceSnapshot = await getDocs(collection(db, "attendance_records"));
+        const presentAttendance = attendanceSnapshot.docs
+          .map(doc => doc.data())
+          .filter(a => a.date === today && a.isPresent);
+        const presentStudentIds = presentAttendance.map(a => a.student_id);
 
-      // Get student details for present students
-      const studentsSnapshot = await getDocs(collection(db, "students"));
-      const allStudents = studentsSnapshot.docs.map(doc => doc.data());
-      const presentStudents = allStudents.filter(s => presentStudentIds.includes(s.student_id));
-      setStudentsList(presentStudents);
+        // Get student details for present students, including inTime
+        const studentsSnapshot = await getDocs(collection(db, "students"));
+        const allStudents = studentsSnapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        }));
+        const presentStudents = allStudents.filter(s => presentStudentIds.includes(s.student_id));
+        setStudentsList(presentStudents);
+      } catch (error) {
+        console.error("Error fetching students:", error);
+      }
     };
     fetchStudents();
   }, [today]);
@@ -61,14 +132,34 @@ export default function DailyReports() {
   const learningOptions = [
     "Developing Skills", "Completed With Assistance", "Completed Independently"
   ];
-  const themeTags = [
-    "Animals", "Plants", "Seasons", "Colors", "Shapes", "Actions"
-  ];
+  
 
   // Handlers
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    if (name.startsWith("ouch.") || name.startsWith("incident.")) {
+ if (name === "student_id") {
+  const fetchStudent = async () => {
+    try {
+      const q = query(collection(db, "students"), where("student_id", "==", value));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const studentData = snapshot.docs[0].data();
+        setForm(prev => ({
+          ...prev,
+          student_id: value,
+          name: studentData.name || '',
+          inTime: convertTo24HourTime(studentData.inTime || ''), // 💡 convert here
+          outTime: '',
+        }));
+      }
+    } catch (err) {
+      console.error("Error fetching student:", err);
+    }
+  };
+  fetchStudent();
+}
+
+ else if (name.startsWith("ouch.") || name.startsWith("incident.")) {
       const [section, field] = name.split(".");
       setForm((prev) => ({
         ...prev,
@@ -174,7 +265,7 @@ export default function DailyReports() {
             >
               Reports
             </span>
-            <span className="nav-link" onClick={() => handleNav('/child-report')}>Child Data</span>
+            <span className="nav-link" onClick={() => handleNav('/child-profile/child-report')}>Child Data</span>
             <span
               style={{ color: '#6b7280', cursor: 'pointer' }}
               onClick={() => navigate('/themes')}
@@ -469,28 +560,30 @@ export default function DailyReports() {
           <div className="row">
             <label>Theme of the day</label>
             <div className="theme-tags">
-              {themeTags.map((tag) => (
-                <button
-                  type="button"
-                  key={tag}
-                  className={form.theme.includes(tag) ? "btn selected small" : "btn small"}
-                  onClick={() => handleTheme(tag)}
-                >
-                  {tag}
-                </button>
-              ))}
+              {form.theme.map((tag) => (
+  <button
+    type="button"
+    key={tag}
+    className="btn selected small"
+    onClick={() => handleTheme(tag)}
+  >
+    {tag}
+  </button>
+))}
+
             </div>
-            {form.themeDetails.map((val, i) => (
-              <input
-                key={i}
-                className="input"
-                type="text"
-                placeholder={`Theme detail ${i + 1}`}
-                value={val}
-                onChange={(e) => handleThemeDetail(i, e.target.value)}
-                style={{ marginTop: 6 }}
-              />
-            ))}
+            {form.theme.map((tag, i) => (
+  <input
+    key={i}
+    className="input"
+    type="text"
+    placeholder={`Theme detail ${i + 1}`}
+    value={form.themeDetails[i] || ''}
+    onChange={(e) => handleThemeDetail(i, e.target.value)}
+    style={{ marginTop: 6 }}
+  />
+))}
+
           </div>
           {/* Buttons */}
           <div className="row btn-row">
@@ -503,7 +596,8 @@ export default function DailyReports() {
           </div>
         </form>
       </main>
- 
+  
+
 
       {/* CSS */}
       <style>{`

@@ -1,13 +1,38 @@
-import React, { useState } from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update path as needed
-import { useNavigate,useLocation } from 'react-router-dom';
-import TabButtons from '../components/TabButtons';
+import React, { useContext } from "react";
+import { useNavigate, useLocation } from 'react-router-dom';
+import giraffeIcon from "../assets/Logo.png";
+import { ChildDataContext } from "./ChildProfileFlow";
+
 export default function ChildDetails() {
-  const [mobile, setMobile] = useState("");
-  const [blockFlat, setBlockFlat] = useState("");
   const navigate = useNavigate();
-  const location=  useLocation();
+  const location = useLocation();
+  const { childData, setChildData } = useContext(ChildDataContext);
+
+  const details = childData?.details || {};
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    const finalValue = name === "parentMobile" ? value.replace(/\D/g, "") : value;
+
+    setChildData(prev => ({
+      ...prev,
+      details: {
+        ...prev.details,
+        [name]: finalValue
+      }
+    }));
+  };
+
   const isActive = (path) => location.pathname === path;
+
+  const handleNext = () => {
+    navigate("/child-profile/medical-info");
+  };
+
+  const handleBack = () => {
+    navigate("/child-profile/child-report");
+  };
+
   return (
     <div className="child-details-bg">
       {/* Header */}
@@ -15,29 +40,12 @@ export default function ChildDetails() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
           <img src={giraffeIcon} alt="logo" className="login-logo" />
           <nav style={{ display: 'flex', gap: '2rem' }}>
-            <span style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }}>Home</span>
-            <span style={{ color: '#6b7280', cursor: 'pointer' }}>Daily Report</span>
+            <span style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }} onClick={() => navigate('/home')}>Home</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/daily-reports')}>Daily Report</span>
             <span style={{ color: '#8b5cf6', fontWeight: '500', cursor: 'pointer' }}>Child Data</span>
-            <span
-    style={{ color: '#6b7280', cursor: 'pointer' }}
-    onClick={() => navigate('/reports')}
-  >
-    Reports
-  </span>
-            <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/themes')}
->
-  Theme
-</span>
-
-            <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/fees')}
->
-  Fees
-</span>
-
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/reports')}>Reports</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/themes')}>Theme</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/fees')}>Fees</span>
           </nav>
         </div>
         <div className="header-right">
@@ -48,84 +56,61 @@ export default function ChildDetails() {
       {/* Main Content */}
       <main className="child-details-main">
         <h2 className="main-title">Child Data</h2>
-         <div className="tab-bar">
-      <button
-        className={`tab${isActive('/child-report') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-report')}
-      >
-        Basic Information
-      </button>
-      <button
-        className={`tab${isActive('/child-details') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-details')}
-      >
-        Emergency Details
-      </button>
-      <button
-        className={`tab${isActive('/medical-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/medical-info')}
-      >
-        Medical Information
-      </button>
-      <button
-        className={`tab${isActive('/development-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/development-info')}
-      >
-        Developmental Information
-      </button>
-      <button
-        className={`tab${isActive('/daily-routine') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/daily-routine')}
-      >
-        Daily Routine
-      </button>
-      <button
-        className={`tab${isActive('/additional-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/additional-info')}
-      >
-        Additional Information
-      </button>
-    </div>
+
+        {/* Tab Bar */}
+        <div className="tab-bar">
+          <button className={`tab${isActive("/child-profile/child-report") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/child-report")}>Basic Information</button>
+          <button className={`tab${isActive("/child-profile/child-details") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/child-details")}>Emergency Details</button>
+          <button className={`tab${isActive("/child-profile/medical-info") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/medical-info")}>Medical Information</button>
+          <button className={`tab${isActive("/child-profile/development-info") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/development-info")}>Developmental Information</button>
+          <button className={`tab${isActive("/child-profile/daily-routine") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/daily-routine")}>Daily Routine</button>
+          <button className={`tab${isActive("/child-profile/additional-info") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/additional-info")}>Additional Information</button>
+        </div>
+
+        {/* Form */}
         <form className="child-form">
           <div className="form-section">
             <div className="section-title">
               <span className="section-icon">2</span>
               Emergency Details
             </div>
+
             <div className="form-group">
               <label>Mobile number of parents with relationship</label>
               <input
                 className="input"
                 type="text"
+                name="parentMobile"
                 placeholder="1234567890"
-                value={mobile}
-                onChange={e => setMobile(e.target.value.replace(/\D/g, ""))}
                 maxLength={10}
+                value={details.parentMobile || ""}
+                onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
               <label>Block & Flat No</label>
               <input
                 className="input"
                 type="text"
+                name="blockFlat"
                 placeholder="1,xxx colony"
-                value={blockFlat}
-                onChange={e => setBlockFlat(e.target.value)}
+                value={details.blockFlat || ""}
+                onChange={handleChange}
               />
             </div>
+
+            {/* Navigation Buttons */}
             <div className="form-btn-row">
-              <button type="button" className="back-btn">Back</button>
-              <button
-  type="button"
-  className="next-btn"
-  onClick={() => navigate('/medical-info')}
->
-  Next
-</button>
+              <button type="button" className="back-btn" onClick={handleBack}>Back</button>
+              <button type="button" className="next-btn" onClick={handleNext}>Next</button>
             </div>
           </div>
         </form>
       </main>
+ 
+
+
       <style>{`
         .child-details-bg {
           min-height: 100vh;

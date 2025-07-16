@@ -1,72 +1,51 @@
-import React, { useState } from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update the path as needed
-import { useNavigate,useLocation } from "react-router-dom";
-import TabButtons from '../components/TabButtons';
-export default function ChildDailyRoutine(childData, setChildData, onNext) {
+import React, { useContext } from "react";
+import giraffeIcon from "../assets/Logo.png";
+import { useNavigate, useLocation } from "react-router-dom";
+import { ChildDataContext } from "./ChildProfileFlow";
+
+export default function ChildDailyRoutine() {
   const navigate = useNavigate();
   const location = useLocation();
-   const isActive = (path) => location.pathname === path;
-  const [form, setForm] = useState({
-    routine: "",
-    sleepSchedule: "",
-    mealSchedule: "",
-    mealPreference: "",
-    culturalPractice: "",
-  });
+  const { childData, setChildData } = useContext(ChildDataContext);
+
+  const routine = childData?.routine || {};
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setChildData((prev) => ({
+      ...prev,
+      routine: {
+        ...prev.routine,
+        [name]: value,
+      },
+    }));
   };
 
-  const handleNext = (e) => {
-    e.preventDefault();
-    // Add navigation to next step here if needed
-    alert("Daily routine saved!");
+  const isActive = (path) => location.pathname === path;
+
+  const handleNext = () => {
+    navigate("/child-profile/additional-info");
+  };
+
+  const handleBack = () => {
+    navigate("/child-profile/development-info");
   };
 
   return (
     <div className="child-bg">
       {/* Header */}
       <header className="child-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
           <img src={giraffeIcon} alt="logo" className="login-logo" />
-          <nav style={{ display: 'flex', gap: '2rem' }}>
-            <span
-              style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }}
-              onClick={() => navigate('/home')}
-            >Home</span>
-            <span
-              style={{ color: '#6b7280', cursor: 'pointer' }}
-              onClick={() => navigate('/daily-reports')}
-            >Daily Report</span>
-            <span
-              style={{ color: '#8b5cf6', fontWeight: '500', cursor: 'pointer' }}
-              onClick={() => navigate('/child-report')}
-            >Child Data</span>
-           <span
-    style={{ color: '#6b7280', cursor: 'pointer' }}
-    onClick={() => navigate('/reports')}
-  >
-    Reports
-  </span>
-            <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/themes')}
->
-  Theme
-</span>
-
-           <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/fees')}
->
-  Fees
-</span>
-
+          <nav style={{ display: "flex", gap: "2rem" }}>
+            <span onClick={() => navigate("/home")} style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }}>Home</span>
+            <span onClick={() => navigate("/daily-reports")} style={{ color: "#6b7280", cursor: "pointer" }}>Daily Report</span>
+            <span style={{ color: "#8b5cf6", fontWeight: "500" }}>Child Data</span>
+            <span onClick={() => navigate("/reports")} style={{ color: "#6b7280", cursor: "pointer" }}>Reports</span>
+            <span onClick={() => navigate("/themes")} style={{ color: "#6b7280", cursor: "pointer" }}>Theme</span>
+            <span onClick={() => navigate("/fees")} style={{ color: "#6b7280", cursor: "pointer" }}>Fees</span>
           </nav>
         </div>
-       
         <div className="header-right">
           <button className="add-btn">+ Add New Child</button>
         </div>
@@ -75,50 +54,25 @@ export default function ChildDailyRoutine(childData, setChildData, onNext) {
       {/* Main Content */}
       <main className="child-main">
         <h2 className="main-title">Child Data</h2>
+
+        {/* Tab Bar */}
         <div className="tab-bar">
-      <button
-        className={`tab${isActive('/child-report') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-report')}
-      >
-        Basic Information
-      </button>
-      <button
-        className={`tab${isActive('/child-details') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-details')}
-      >
-        Emergency Details
-      </button>
-      <button
-        className={`tab${isActive('/medical-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/medical-info')}
-      >
-        Medical Information
-      </button>
-      <button
-        className={`tab${isActive('/development-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/development-info')}
-      >
-        Developmental Information
-      </button>
-      <button
-        className={`tab${isActive('/daily-routine') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/daily-routine')}
-      >
-        Daily Routine
-      </button>
-      <button
-        className={`tab${isActive('/additional-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/additional-info')}
-      >
-        Additional Information
-      </button>
-    </div>
-        <form className="child-form" onSubmit={handleNext}>
+          <button className={`tab${isActive("/child-profile/child-report") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/child-report")}>Basic Information</button>
+          <button className={`tab${isActive("/child-profile/child-details") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/child-details")}>Emergency Details</button>
+          <button className={`tab${isActive("/child-profile/medical-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/medical-info")}>Medical Information</button>
+          <button className={`tab${isActive("/child-profile/development-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/development-info")}>Developmental Information</button>
+          <button className={`tab${isActive("/child-profile/daily-routine") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/daily-routine")}>Daily Routine</button>
+          <button className={`tab${isActive("/child-profile/additional-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/additional-info")}>Additional Information</button>
+        </div>
+
+        {/* Form */}
+        <form className="child-form">
           <div className="form-section">
             <div className="section-title">
               <span className="section-icon">5</span>
               Daily Routine
             </div>
+
             <div className="form-group">
               <label>Daily Routine of child</label>
               <input
@@ -126,10 +80,11 @@ export default function ChildDailyRoutine(childData, setChildData, onNext) {
                 type="text"
                 name="routine"
                 placeholder="Type any keywords"
-                value={form.routine}
+                value={routine.routine || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
               <label>Child sleep schedule</label>
               <input
@@ -137,10 +92,11 @@ export default function ChildDailyRoutine(childData, setChildData, onNext) {
                 type="text"
                 name="sleepSchedule"
                 placeholder="Type any keywords"
-                value={form.sleepSchedule}
+                value={routine.sleepSchedule || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
               <label>Child meal schedule and fav meal</label>
               <input
@@ -148,10 +104,11 @@ export default function ChildDailyRoutine(childData, setChildData, onNext) {
                 type="text"
                 name="mealSchedule"
                 placeholder="Type any keywords"
-                value={form.mealSchedule}
+                value={routine.mealSchedule || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
               <label>Child meal or snacks preference</label>
               <input
@@ -159,10 +116,11 @@ export default function ChildDailyRoutine(childData, setChildData, onNext) {
                 type="text"
                 name="mealPreference"
                 placeholder="Type any keywords"
-                value={form.mealPreference}
+                value={routine.mealPreference || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
               <label>Any Cultural or religious practice</label>
               <input
@@ -170,22 +128,22 @@ export default function ChildDailyRoutine(childData, setChildData, onNext) {
                 type="text"
                 name="culturalPractice"
                 placeholder="Type any keywords"
-                value={form.culturalPractice}
+                value={routine.culturalPractice || ""}
                 onChange={handleChange}
               />
             </div>
+
+            {/* Navigation Buttons */}
             <div className="form-btn-row">
-             <button
-  type="button"
-  className="next-btn"
-  onClick={() => navigate('/additional-info')}
->
-  Next
-</button>
+              <button type="button" className="back-btn" onClick={handleBack}>Back</button>
+              <button type="button" className="next-btn" onClick={handleNext}>Next</button>
             </div>
           </div>
         </form>
       </main>
+ 
+
+
       {/* CSS */}
       <style>{`
         .child-bg {

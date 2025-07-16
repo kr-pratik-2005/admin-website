@@ -1,62 +1,49 @@
-import React, { useState } from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update the path as needed
-import { useNavigate,useLocation  } from 'react-router-dom';
-import TabButtons from '../components/TabButtons';
-export default function ChildMedicalInfo(childData, setChildData, onNext) {
-    const navigate = useNavigate();
-    const location = useLocation();
+import React, { useContext } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import giraffeIcon from "../assets/Logo.png";
+import { ChildDataContext } from "./ChildProfileFlow";
 
-  // Helper to check if route is active
-  const isActive = (path) => location.pathname === path;
-  const [form, setForm] = useState({
-    medicalInfo: "",
-    allergies: "",
-    medicationDetails: "",
-    medicationNeeds: "",
-    dietaryRestriction: "",
-  });
+export default function ChildMedicalInfo() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { childData, setChildData } = useContext(ChildDataContext);
+
+  const medicalData = childData?.medical || {};
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setChildData((prev) => ({
+      ...prev,
+      medical: {
+        ...prev.medical,
+        [name]: value,
+      },
+    }));
   };
 
-  const handleNext = (e) => {
-    e.preventDefault();
-    alert("Medical information saved!");
-    // Add navigation to next step here if needed
+  const isActive = (path) => location.pathname === path;
+
+  const handleNext = () => {
+    navigate("/child-profile/development-info");
+  };
+
+  const handleBack = () => {
+    navigate("/child-profile/child-details");
   };
 
   return (
     <div className="child-bg">
       {/* Header */}
       <header className="child-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
           <img src={giraffeIcon} alt="logo" className="login-logo" />
-          <nav style={{ display: 'flex', gap: '2rem' }}>
-            <span style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }}>Home</span>
-            <span style={{ color: '#6b7280', cursor: 'pointer' }}>Daily Report</span>
-            <span
-    style={{ color: '#6b7280', cursor: 'pointer' }}
-    onClick={() => navigate('/reports')}
-  >
-    Reports
-  </span>
+          <nav style={{ display: "flex", gap: "2rem" }}>
+            <span style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }} onClick={() => navigate('/home')}>Home</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/daily-reports')}>Daily Report</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/reports')}>Reports</span>
             <span style={{ color: '#8b5cf6', fontWeight: '500', cursor: 'pointer' }}>Child Data</span>
-            <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/themes')}
->
-  Theme
-</span>
-
-            <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/fees')}
->
-  Fees
-</span>
-
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/themes')}>Theme</span>
+            <span style={{ color: '#6b7280', cursor: 'pointer' }} onClick={() => navigate('/fees')}>Fees</span>
           </nav>
         </div>
         <div className="header-right">
@@ -67,117 +54,96 @@ export default function ChildMedicalInfo(childData, setChildData, onNext) {
       {/* Main Content */}
       <main className="child-main">
         <h2 className="main-title">Child Data</h2>
+
+        {/* Tab Bar */}
         <div className="tab-bar">
-      <button
-        className={`tab${isActive('/child-report') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-report')}
-      >
-        Basic Information
-      </button>
-      <button
-        className={`tab${isActive('/child-details') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-details')}
-      >
-        Emergency Details
-      </button>
-      <button
-        className={`tab${isActive('/medical-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/medical-info')}
-      >
-        Medical Information
-      </button>
-      <button
-        className={`tab${isActive('/development-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/development-info')}
-      >
-        Developmental Information
-      </button>
-      <button
-        className={`tab${isActive('/daily-routine') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/daily-routine')}
-      >
-        Daily Routine
-      </button>
-      <button
-        className={`tab${isActive('/additional-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/additional-info')}
-      >
-        Additional Information
-      </button>
-    </div>
-        <form className="child-form" onSubmit={handleNext}>
+          <button className={`tab${isActive("/child-profile/child-report") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/child-report")}>Basic Information</button>
+          <button className={`tab${isActive("/child-profile/child-details") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/child-details")}>Emergency Details</button>
+          <button className={`tab${isActive("/child-profile/medical-info") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/medical-info")}>Medical Information</button>
+          <button className={`tab${isActive("/child-profile/development-info") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/development-info")}>Developmental Information</button>
+          <button className={`tab${isActive("/child-profile/daily-routine") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/daily-routine")}>Daily Routine</button>
+          <button className={`tab${isActive("/child-profile/additional-info") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/additional-info")}>Additional Information</button>
+        </div>
+
+        {/* Form */}
+        <form className="child-form">
           <div className="form-section">
             <div className="section-title">
               <span className="section-icon">3</span>
               Medical Information
             </div>
+
             <div className="form-group">
               <label>Medical Information</label>
               <textarea
                 className="input"
                 name="medicalInfo"
                 placeholder="Type any keywords"
-                value={form.medicalInfo}
+                value={medicalData.medicalInfo || ""}
                 onChange={handleChange}
                 rows={3}
               />
             </div>
+
             <div className="form-group">
-              <label>Does your child have any allergies</label>
+              <label>Does your child have any allergies?</label>
               <input
                 className="input"
                 type="text"
                 name="allergies"
-                placeholder="Type any keywords"
-                value={form.allergies}
+                placeholder="E.g., Milk, Nuts"
+                value={medicalData.allergies || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
               <label>Medication details of child</label>
               <input
                 className="input"
                 type="text"
                 name="medicationDetails"
-                placeholder="Type any keywords"
-                value={form.medicationDetails}
+                placeholder="E.g., Dosage, Frequency"
+                value={medicalData.medicationDetails || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
-              <label>Medication needs, we must be aware of</label>
+              <label>Medication needs we must be aware of</label>
               <input
                 className="input"
                 type="text"
                 name="medicationNeeds"
                 placeholder="Type any keywords"
-                value={form.medicationNeeds}
+                value={medicalData.medicationNeeds || ""}
                 onChange={handleChange}
               />
             </div>
+
             <div className="form-group">
-              <label>Dietary restriction, we must be aware of</label>
+              <label>Dietary restrictions we must be aware of</label>
               <input
                 className="input"
                 type="text"
                 name="dietaryRestriction"
-                placeholder="Type any keywords"
-                value={form.dietaryRestriction}
+                placeholder="E.g., Vegetarian, No Nuts"
+                value={medicalData.dietaryRestriction || ""}
                 onChange={handleChange}
               />
             </div>
+
+            {/* Navigation Buttons */}
             <div className="form-btn-row">
-              <button
-  type="button"
-  className="next-btn"
-  onClick={() => navigate('/development-info')}
->
-  Next
-</button>
+              <button type="button" className="back-btn" onClick={handleBack}>Back</button>
+              <button type="button" className="next-btn" onClick={handleNext}>Next</button>
             </div>
           </div>
         </form>
       </main>
+ 
+
+  
       {/* CSS */}
       <style>{`
         .child-bg {

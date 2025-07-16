@@ -1,164 +1,147 @@
-import React, { useState } from "react";
-import giraffeIcon from "../assets/Logo.png"; // Update the path as needed
-import { useNavigate,useLocation } from "react-router-dom";
+import React, { useContext } from "react";
+import giraffeIcon from "../assets/Logo.png";
+import { useNavigate, useLocation } from "react-router-dom";
 
-export default function ChildAdditionalInfo(childData, setChildData, onNext) {
+// Firebase
+import { db } from "../firebase/firebase";
+import { collection, addDoc, Timestamp } from "firebase/firestore";
+
+// Context
+import { ChildDataContext } from "./ChildProfileFlow";
+
+export default function ChildAdditionalInfo() {
   const navigate = useNavigate();
-  const location=useLocation();
-  const isActive = (path) => location.pathname === path;
-  const [form, setForm] = useState({
-    communication: "",
-    share: "",
-    expectation: "",
-  });
+  const location = useLocation();
+  const { childData, setChildData } = useContext(ChildDataContext);
+
+  const additional = childData?.additional || {};
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setChildData((prev) => ({
+      ...prev,
+      additional: {
+        ...prev.additional,
+        [name]: value,
+      },
+    }));
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    alert("Additional information saved!");
-    // You can navigate to a summary or dashboard if needed
+
+    try {
+      await addDoc(collection(db, "child_profiles"), {
+        ...childData,
+        createdAt: Timestamp.now(),
+      });
+
+      alert("✅ Form Submitted & Saved successfully to Firebase!");
+      navigate("/home");
+    } catch (error) {
+      console.error("Error saving child data:", error);
+      alert("❌ Failed to save data: " + error.message);
+    }
   };
+
+  const handleBack = () => {
+    navigate("/child-profile/daily-routine");
+  };
+
+  const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="child-bg">
-      {/* Header */}
-      <header className="child-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-          <img src={giraffeIcon} alt="logo" className="login-logo" />
-          <nav style={{ display: 'flex', gap: '2rem' }}>
-            <span
-              style={{ color: '#6b7280', fontWeight: '500', cursor: 'pointer' }}
-              onClick={() => navigate('/home')}
-            >Home</span>
-            <span
-              style={{ color: '#6b7280', cursor: 'pointer' }}
-              onClick={() => navigate('/daily-reports')}
-            >Daily Report</span>
-            <span
-              style={{ color: '#8b5cf6', fontWeight: '500', cursor: 'pointer' }}
-              onClick={() => navigate('/child-report')}
-            >Child Data</span>
-            <span
-    style={{ color: '#6b7280', cursor: 'pointer' }}
-    onClick={() => navigate('/reports')}
-  >
-    Reports
-  </span>
-            <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/themes')}
->
-  Theme
-</span>
-
-          <span
-  style={{ color: '#6b7280', cursor: 'pointer' }}
-  onClick={() => navigate('/fees')}
->
-  Fees
-</span>
-
-          </nav>
-        </div>
-       
-        <div className="header-right">
-          <button className="add-btn">+ Add New Child</button>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="child-main">
-        <h2 className="main-title">Child Data</h2>
-        <div className="tab-bar">
-      <button
-        className={`tab${isActive('/child-report') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-report')}
-      >
-        Basic Information
-      </button>
-      <button
-        className={`tab${isActive('/child-details') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/child-details')}
-      >
-        Emergency Details
-      </button>
-      <button
-        className={`tab${isActive('/medical-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/medical-info')}
-      >
-        Medical Information
-      </button>
-      <button
-        className={`tab${isActive('/development-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/development-info')}
-      >
-        Developmental Information
-      </button>
-      <button
-        className={`tab${isActive('/daily-routine') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/daily-routine')}
-      >
-        Daily Routine
-      </button>
-      <button
-        className={`tab${isActive('/additional-info') ? ' tab-active' : ''}`}
-        onClick={() => navigate('/additional-info')}
-      >
-        Additional Information
-      </button>
-    </div>
-        <form className="child-form" onSubmit={handleSave}>
-          <div className="form-section">
-            <div className="section-title">
-              <span className="section-icon">6</span>
-              Additional Information
-            </div>
-            <div className="form-group">
-              <label>Child communication for feelings & needs</label>
-              <input
-                className="input"
-                type="text"
-                name="communication"
-                placeholder="Type any keywords"
-                value={form.communication}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="form-group">
-              <label>Anything want to share with us</label>
-              <input
-                className="input"
-                type="text"
-                name="share"
-                placeholder="Type any keywords"
-                value={form.share}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="form-group">
-              <label>Your expectation from mimansa kids</label>
-              <input
-                className="input"
-                type="text"
-                name="expectation"
-                placeholder="Type any keywords"
-                value={form.expectation}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="form-btn-row">
-              <button type="button" className="back-btn" onClick={() => navigate('/daily-routine')}>Back</button>
-              <button type="submit" className="save-btn">Save</button>
-            </div>
+    <>
+      <div className="child-bg">
+        {/* Header */}
+        <header className="child-header">
+          <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
+            <img src={giraffeIcon} alt="logo" className="login-logo" />
+            <nav style={{ display: "flex", gap: "2rem" }}>
+              <span onClick={() => navigate("/home")} style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }}>Home</span>
+              <span onClick={() => navigate("/daily-reports")} style={{ color: "#6b7280", cursor: "pointer" }}>Daily Report</span>
+              <span style={{ color: "#8b5cf6", fontWeight: "500" }}>Child Data</span>
+              <span onClick={() => navigate("/reports")} style={{ color: "#6b7280", cursor: "pointer" }}>Reports</span>
+              <span onClick={() => navigate("/themes")} style={{ color: "#6b7280", cursor: "pointer" }}>Theme</span>
+              <span onClick={() => navigate("/fees")} style={{ color: "#6b7280", cursor: "pointer" }}>Fees</span>
+            </nav>
           </div>
-        </form>
-      </main>
-      {/* CSS */}
+          <div className="header-right">
+            <button className="add-btn">+ Add New Child</button>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="child-main">
+          <h2 className="main-title">Child Data</h2>
+
+          {/* Tab Bar */}
+          <div className="tab-bar">
+            <button className={`tab${isActive("/child-profile/child-report") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/child-report")}>Basic Information</button>
+            <button className={`tab${isActive("/child-profile/child-details") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/child-details")}>Emergency Details</button>
+            <button className={`tab${isActive("/child-profile/medical-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/medical-info")}>Medical Information</button>
+            <button className={`tab${isActive("/child-profile/development-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/development-info")}>Developmental Information</button>
+            <button className={`tab${isActive("/child-profile/daily-routine") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/daily-routine")}>Daily Routine</button>
+            <button className={`tab${isActive("/child-profile/additional-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/additional-info")}>Additional Information</button>
+          </div>
+
+          {/* Form */}
+          <form className="child-form" onSubmit={handleSave}>
+            <div className="form-section">
+              <div className="section-title">
+                <span className="section-icon">6</span>
+                Additional Information
+              </div>
+
+              <div className="form-group">
+                <label>Child communication for feelings & needs</label>
+                <input
+                  className="input"
+                  type="text"
+                  name="communication"
+                  placeholder="Type any keywords"
+                  value={additional.communication || ""}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Anything want to share with us</label>
+                <input
+                  className="input"
+                  type="text"
+                  name="share"
+                  placeholder="Type any keywords"
+                  value={additional.share || ""}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Your expectation from Mimansa Kids</label>
+                <input
+                  className="input"
+                  type="text"
+                  name="expectation"
+                  placeholder="Type any keywords"
+                  value={additional.expectation || ""}
+                  onChange={handleChange}
+                />
+              </div>
+
+              {/* Navigation Buttons */}
+              <div className="form-btn-row">
+                <button type="button" className="back-btn" onClick={handleBack}>Back</button>
+                <button type="submit" className="save-btn">Save</button>
+              </div>
+            </div>
+          </form>
+        </main>
+      </div>
+
+      {/* CSS Styles */}
       <style>{`
+        /* --- styles are unchanged from your original --- */
         .child-bg {
           min-height: 100vh;
           background: #f5f7fa;
@@ -319,6 +302,6 @@ export default function ChildAdditionalInfo(childData, setChildData, onNext) {
           }
         }
       `}</style>
-    </div>
+    </>
   );
 }

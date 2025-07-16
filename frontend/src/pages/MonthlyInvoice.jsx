@@ -15,7 +15,11 @@ export function getMonthString(monthStr) {
 
 export default function MonthlyInvoice() {
   const navigate = useNavigate();
-  const [month, setMonth] = useState("2025-06");
+  const [month, setMonth] = useState(() => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+});
+
   const [rows, setRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -85,14 +89,46 @@ export default function MonthlyInvoice() {
       <main className="invoice-main">
         <h2 className="invoice-title">Monthly Invoice</h2>
         <div className="invoice-month-row">
-          <label>Select Month</label>
-          <input
-            type="month"
-            className="invoice-month-input"
-            value={month}
-            onChange={e => setMonth(e.target.value)}
-          />
-        </div>
+  <label style={{ marginRight: "1rem" }}>Select Month</label>
+  <div style={{ display: "flex", gap: "1rem" }}>
+    {/* Month Dropdown */}
+    <select
+      className="invoice-month-input"
+      value={month.split("-")[1]}
+      onChange={(e) => {
+        const [year] = month.split("-");
+        setMonth(`${year}-${e.target.value}`);
+      }}
+    >
+      {Array.from({ length: 12 }, (_, i) => {
+        const m = String(i + 1).padStart(2, "0");
+        const label = new Date(0, i).toLocaleString("default", { month: "long" });
+        return (
+          <option key={m} value={m}>
+            {label}
+          </option>
+        );
+      })}
+    </select>
+
+    {/* Year Dropdown */}
+    <select
+      className="invoice-month-input"
+      value={month.split("-")[0]}
+      onChange={(e) => {
+        const [, mon] = month.split("-");
+        setMonth(`${e.target.value}-${mon}`);
+      }}
+    >
+      {["2023", "2024", "2025", "2026", "2027"].map((y) => (
+        <option key={y} value={y}>
+          {y}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
+
         {/* Search Box */}
         <div style={{ width: "100%", maxWidth: 500, marginBottom: "1.5rem" }}>
           <input

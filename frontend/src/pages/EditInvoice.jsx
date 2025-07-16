@@ -3,13 +3,14 @@ import giraffeIcon from "../assets/Logo.png";
 import { useNavigate, useLocation } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../firebase/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { getMonthString } from "./MonthlyInvoice";
+
 export default function EditInvoice() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { student_id, name, grade, fee,month } = location.state || {};
+  const { student_id, name, grade, fee, month } = location.state || {};
   const [feesAmount, setFeesAmount] = useState(fee?.replace("₹", "").trim() || "");
   const [remarks, setRemarks] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -27,15 +28,37 @@ export default function EditInvoice() {
     try {
       setIsSaving(true);
 
-      // 👇 Call your backend to create real Razorpay payment link
+      // 1. Query the student's contact from Firestore by student_id field
+      console.log("student_id used for fetch:", student_id);
+
+      const q = query(
+        collection(db, "students"),
+        where("student_id", "==", student_id)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        alert("Student not found!");
+        setIsSaving(false);
+        return;
+      }
+
+      const studentData = querySnapshot.docs[0].data();
+      const contact = studentData.contact || "";
+
+      // 2. Call your backend to create real Razorpay payment link
       const res = await fetch("http://localhost:5000/create_payment_link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           amount: parseInt(feesAmount),
-          email: "parent@example.com", // optional; replace if available
-          contact: "9876543210"         // optional; replace if available
+          email: studentData.email || "parent@example.com",
+          contact: contact || "9876543210",
+          notes: {
+            student_id, // <-- REQUIRED for webhook to work!
+            month
+          }
         })
       });
 
@@ -45,10 +68,10 @@ export default function EditInvoice() {
       const generatedLink = data.short_url;
       setRazorpayLink(generatedLink);
 
-      const monthKey = new Date().toISOString().slice(0, 7);
-      const monthFormatted = getMonthString(monthKey); // YYYY-MM
+      // 3. Save invoice with contact included
       await setDoc(doc(db, "fees", `${student_id}-${month}`), {
         student_id,
+        contact,
         invoice_number: invoiceNumber,
         fee: Number(feesAmount),
         sent: true,
@@ -78,7 +101,7 @@ export default function EditInvoice() {
             <span onClick={() => navigate('/home')} style={{ color: "#6b7280", fontWeight: "500", cursor: "pointer" }}>Home</span>
             <span onClick={() => navigate('/daily-reports')} style={{ color: "#6b7280", cursor: "pointer" }}>Daily Report</span>
             <span onClick={() => navigate('/reports')} style={{ color: "#6b7280", cursor: "pointer" }}>Reports</span>
-            <span onClick={() => navigate('/child-report')} style={{ color: "#6b7280", cursor: "pointer" }}>Child Data</span>
+            <span onClick={() => navigate("/child-profile/child-report")} style={{ color: "#6b7280", cursor: "pointer" }}>Child Data</span>
             <span onClick={() => navigate('/themes')} style={{ color: "#6b7280", cursor: "pointer" }}>Theme</span>
             <span style={{ color: "#8b5cf6", fontWeight: "500", cursor: "pointer" }}>Fees</span>
           </nav>
@@ -146,7 +169,7 @@ export default function EditInvoice() {
       </main>
  
 
-   
+ 
 
       {/* CSS */}
       <style>{`

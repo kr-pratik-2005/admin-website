@@ -30,7 +30,7 @@ export default function Reports() {
     </span>
     <span
       style={{ color: '#6b7280', cursor: 'pointer' }}
-      onClick={() => navigate('/child-report')}
+      onClick={() => navigate("/child-profile/child-report")}
     >
       Child Data
     </span>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Calendar, Camera } from 'lucide-react';
 import giraffeIcon from "../assets/Logo.png";
 import { useNavigate } from 'react-router-dom';
@@ -28,7 +28,40 @@ const HomeScreen = () => {
   const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
   const lastDay = new Date(year, month, totalDays).toISOString().split('T')[0];
 
-  // Fetch all messages for inbox and count unread
+  // Midnight Reset Logic
+  const lastCheckedDateRef = useRef(todayStr);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const now = new Date();
+      const currentDate = now.toISOString().split('T')[0];
+      if (lastCheckedDateRef.current !== currentDate) {
+        try {
+          const studentsSnapshot = await getDocs(collection(db, "students"));
+          const batchUpdates = studentsSnapshot.docs.map(docSnap => {
+            return updateDoc(doc(db, "students", docSnap.id), {
+              isPresent: false,
+              inTime: null
+            });
+          });
+          await Promise.all(batchUpdates);
+
+          const refreshed = await getDocs(collection(db, "students"));
+          setStudents(refreshed.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })));
+        } catch (error) {
+          console.error("Failed to reset attendance and inTime after 12am:", error);
+        }
+        lastCheckedDateRef.current = currentDate;
+      }
+    }, 60000); // Check every 60 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Inbox: Fetch all messages and count unread
   useEffect(() => {
     const q = query(
       collection(db, "messages"),
@@ -40,11 +73,9 @@ const HomeScreen = () => {
         id: doc.id,
         ...doc.data()
       }));
-      // Sort: unread on top, then by latest
       msgs.sort((a, b) => {
         if (!a.read && b.read) return -1;
         if (a.read && !b.read) return 1;
-        // If both same read status, sort by time
         return (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0);
       });
       setAllMessages(msgs);
@@ -82,7 +113,6 @@ const HomeScreen = () => {
           }
         }
 
-        // After attendance updates, set students
         const querySnapshot = await getDocs(collection(db, "students"));
         const studentsToday = querySnapshot.docs.map(doc => ({
           id: doc.id,
@@ -157,7 +187,6 @@ const HomeScreen = () => {
   };
 
   const grades = ["Playgroup", "Nursery", "Pre primary I"];
-
   const attendanceByGrade = grades.map(grade => {
     const studentsInGrade = students.filter(s => s.grade === grade);
     const presentCount = studentsInGrade.filter(s => s.isPresent).length;
@@ -180,7 +209,10 @@ const HomeScreen = () => {
 
   const handleAttendanceChange = async (studentId, isPresent, studentObj) => {
     try {
-      await updateDoc(doc(db, "students", studentId), { isPresent });
+      await updateDoc(doc(db, "students", studentId), {
+        isPresent,
+        inTime: isPresent ? new Date().toLocaleTimeString() : studentObj.inTime
+      });
 
       const attendanceQ = query(
         collection(db, "attendance_records"),
@@ -202,7 +234,7 @@ const HomeScreen = () => {
 
       setStudents(prev =>
         prev.map(s =>
-          s.id === studentId ? { ...s, isPresent } : s
+          s.id === studentId ? { ...s, isPresent, inTime: isPresent ? new Date().toLocaleTimeString() : s.inTime } : s
         )
       );
     } catch (error) {
@@ -211,12 +243,19 @@ const HomeScreen = () => {
     }
   };
 
-  const handleDailyReportClick = () => {
-    navigate('/daily-reports');
+  const handleDailyReportClick = (student) => {
+     navigate('/daily-reports', {
+    state: {
+      student_id: student.student_id,
+      name: student.name,
+      inTime: student.inTime || ''
+    }
+  });
   };
 
   const handleChildDataClick = () => {
-    navigate('/child-report');
+    navigate("/child-profile/child-report");
+
   };
 
   return (
@@ -305,8 +344,6 @@ const HomeScreen = () => {
                 </span>
               )}
             </div>
-
-            {/* Inbox dropdown */}
             {inboxOpen && (
               <div style={{
                 position: 'absolute',
@@ -400,7 +437,6 @@ const HomeScreen = () => {
               </div>
             )}
           </div>
-
           <div style={{
             width: '40px',
             height: '40px',
@@ -415,8 +451,6 @@ const HomeScreen = () => {
           </div>
         </div>
       </header>
-
-      {/* Main Content */}
       <main style={{ padding: '2rem' }}>
         {/* Welcome Section */}
         <div style={{
@@ -482,7 +516,6 @@ const HomeScreen = () => {
             </button>
           </div>
         </div>
-
         {/* Dashboard Cards */}
         <div style={{
           display: 'grid',
@@ -548,7 +581,6 @@ const HomeScreen = () => {
               }}></div>
             </div>
           </div>
-
           {/* Grade Statistics */}
           {attendanceByGrade.map(({ grade, presentCount, totalCount, percentage, avatar }, idx) => (
             <div key={grade} style={{
@@ -594,7 +626,6 @@ const HomeScreen = () => {
             </div>
           ))}
         </div>
-
         {/* Student Record Table */}
         <div style={{
           backgroundColor: 'white',
@@ -607,7 +638,6 @@ const HomeScreen = () => {
             color: '#374151',
             marginBottom: '1.5rem'
           }}>Student Record:</h2>
-
           <div style={{ overflowX: 'auto' }}>
             <table style={{
               width: '100%',
@@ -668,7 +698,6 @@ const HomeScreen = () => {
               </thead>
               <tbody>
                 {sortedStudents.map((student, index) => {
-                  // Attendance for the month
                   const presentDays = attendanceMap[student.student_id] || 0;
                   return (
                     <tr key={student.id} style={{
@@ -758,8 +787,6 @@ const HomeScreen = () => {
           </div>
         </div>
       </main>
-
-      {/* Reply Modal */}
       {showReplyBox && (
         <div style={{
           position: 'fixed',
