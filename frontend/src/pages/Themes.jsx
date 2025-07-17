@@ -19,6 +19,7 @@ export default function Themes() {
   );
 };
 
+const [showClearModal, setShowClearModal] = useState(false);
 
 
   const [selectedClass, setSelectedClass] = useState("Playgroup");
@@ -99,6 +100,8 @@ useEffect(() => {
       }));
     }
   };
+ 
+
 
   const saveThemeData = async () => {
     try {
@@ -205,19 +208,81 @@ useEffect(() => {
           </div>
 
           <div className="themes-row">
-            <label>Select Category</label>
-            <select
-              className="themes-input"
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              style={{ width: 180 }}
-            >
-              {sectionList.map(s => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-            <button className="add-tag-btn" type="button" onClick={handleAddTag}>Add Tag</button>
-          </div>
+  <label>Select Category</label>
+  <select
+    className="themes-input"
+    value={category}
+    onChange={e => setCategory(e.target.value)}
+    style={{ width: 180 }}
+  >
+    {sectionList.map(s => (
+      <option key={s}>{s}</option>
+    ))}
+  </select>
+  <button className="add-tag-btn" type="button" onClick={handleAddTag}>
+    Add Tag
+  </button>
+  <button
+    className="clear-tags-btn"
+    type="button"
+    style={{
+      marginLeft: "10px",
+      background: "#f87171",
+      color: "#fff",
+      border: "none",
+      borderRadius: "7px",
+      padding: "8px 18px",
+      fontSize: "1rem",
+      fontWeight: "500",
+      cursor: "pointer"
+    }}
+    onClick={() => setShowClearModal(true)}
+  >
+    Clear All Tags
+  </button>
+</div>
+{showClearModal && (
+  <div className="clear-modal-popup">
+    <div style={{ marginBottom: 16, fontWeight: 500 }}>
+      Are you sure you want to clear all tags?
+    </div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.8rem" }}>
+      <button
+        style={{
+          background: "#e5e7eb",
+          color: "#444",
+          border: "none",
+          borderRadius: "6px",
+          padding: "7px 16px",
+          fontWeight: "500",
+          cursor: "pointer"
+        }}
+        onClick={() => setShowClearModal(false)}
+      >
+        Cancel
+      </button>
+      <button
+        style={{
+          background: "#f87171",
+          color: "#fff",
+          border: "none",
+          borderRadius: "6px",
+          padding: "7px 16px",
+          fontWeight: "500",
+          cursor: "pointer"
+        }}
+        onClick={() => {
+          setThemeOfWeek(defaultStructure);
+          setThemeOfDay(defaultStructure);
+          setShowClearModal(false);
+        }}
+      >
+        Yes, Clear
+      </button>
+    </div>
+  </div>
+)}
+
         </div>
 
         {/* Section Tags Table */}
