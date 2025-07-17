@@ -6,6 +6,7 @@ import { db } from '../firebase/firebase';
 import {
   collection, getDocs, query, where, doc, updateDoc, addDoc, onSnapshot, serverTimestamp
 } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
 
 const HomeScreen = () => {
   const [students, setStudents] = useState([]);
@@ -18,6 +19,9 @@ const HomeScreen = () => {
   const [allMessages, setAllMessages] = useState([]);
 
   const navigate = useNavigate();
+ const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+const [announcementText, setAnnouncementText] = useState('');
+const [sending, setSending] = useState(false);
 
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
@@ -484,6 +488,20 @@ const HomeScreen = () => {
               Gallery
             </button>
             <button
+  style={{
+    backgroundColor: '#8b5cf6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '0.5rem 1rem',
+    cursor: 'pointer'
+  }}
+  onClick={() => setShowAnnouncementModal(true)}
+>
+  Make an Announcement 🗣️
+</button>
+
+            <button
               style={{
                 backgroundColor: 'white',
                 border: '1px solid #d1d5db',
@@ -722,10 +740,18 @@ const HomeScreen = () => {
                         }}>
                           {student.avatar}
                         </div>
-                        <span style={{
-                          color: '#374151',
-                          fontWeight: '500'
-                        }}>{student.name}</span>
+                        <Link
+  to={`/view-report/${student.student_id}`}
+  style={{
+    color: '#374151',
+    fontWeight: '500',
+    textDecoration: 'underline',
+    cursor: 'pointer'
+  }}
+>
+  {student.name}
+</Link>
+
                       </td>
                       <td style={{
                         padding: '1rem',
@@ -837,6 +863,73 @@ const HomeScreen = () => {
           </div>
         </div>
       )}
+      {showAnnouncementModal && (
+  <div style={{
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 3000
+  }}>
+    <div style={{
+      background: 'white', padding: '2rem', borderRadius: '8px',
+      minWidth: '350px', maxWidth: '90%'
+    }}>
+      <h2>Make an Announcement</h2>
+      <textarea
+        rows={4}
+        style={{ width: '100%', marginBottom: '1rem' }}
+        placeholder="Type your announcement here..."
+        value={announcementText}
+        onChange={e => setAnnouncementText(e.target.value)}
+        disabled={sending}
+      />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+        <button
+          onClick={async () => {
+            if (!announcementText.trim()) return;
+            setSending(true);
+            try {
+              await addDoc(collection(db, "announcements"), {
+                from: "demouser@gmail.com",
+                date: new Date().toISOString(),
+                message: announcementText,
+                timestamp: serverTimestamp()
+              });
+              alert('Announcement sent!');
+              setShowAnnouncementModal(false);
+              setAnnouncementText('');
+            } catch (err) {
+              alert('Failed to send announcement');
+              console.error(err);
+            }
+            setSending(false);
+          }}
+          style={{
+            backgroundColor: '#10b981',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '0.5rem 1rem',
+            cursor: sending ? 'not-allowed' : 'pointer'
+          }}
+          disabled={sending}
+        >Send</button>
+        <button
+          onClick={() => setShowAnnouncementModal(false)}
+          style={{
+            backgroundColor: '#e5e7eb',
+            color: '#374151',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '0.5rem 1rem',
+            cursor: 'pointer'
+          }}
+        >Cancel</button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 };
