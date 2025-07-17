@@ -20,6 +20,7 @@ export default function Themes() {
 };
 
 
+
   const [selectedClass, setSelectedClass] = useState("Playgroup");
   const [theme, setTheme] = useState("");
   const [category, setCategory] = useState("Language Development");
@@ -68,7 +69,19 @@ export default function Themes() {
 
     setTheme("");
   };
+function getWeekNumber(date) {
+  const copy = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = copy.getUTCDay() || 7;
+  copy.setUTCDate(copy.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(copy.getUTCFullYear(),0,1));
+  return Math.ceil((((copy - yearStart) / 86400000) + 1) / 7);
+}
 
+const [weekNumber, setWeekNumber] = useState(() => getWeekNumber(new Date()));
+
+useEffect(() => {
+  setWeekNumber(getWeekNumber(new Date(selectedDate)));
+}, [selectedDate]);
   const handleRemoveTag = (section, tagToRemove, source) => {
     if (source === "week") {
       setThemeOfWeek(prev => ({
@@ -91,10 +104,11 @@ export default function Themes() {
     try {
       await setDoc(doc(db, "weekly_tags", teacherId), {
         themeOfWeek,
+        selectedClass
       });
 
       await setDoc(doc(db, "daily_themes", teacherId), {
-        [selectedDate]: themeOfDay,
+        [selectedDate]: themeOfDay,selectedClass
       }, { merge: true });
 
       alert("Themes saved to Firebase ✅");
@@ -170,7 +184,7 @@ export default function Themes() {
 
           <div className="themes-row">
             <label>Theme of the week</label>
-            <input className="themes-input" style={{ width: 60 }} value="02" readOnly />
+<input className="themes-input" style={{ width: 60 }} value={weekNumber} readOnly />
             <input
               className="themes-input"
               style={{ width: 180 }}

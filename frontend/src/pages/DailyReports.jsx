@@ -3,9 +3,8 @@ import { Bell, Calendar, Search } from 'lucide-react';
 import giraffeIcon from "../assets/Logo.png";
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/firebase';
-import { collection, getDocs, Timestamp, doc, setDoc,query,where } from 'firebase/firestore';
+import { collection, getDocs, Timestamp, doc, setDoc, query, where, getDoc } from 'firebase/firestore';
 import { useLocation } from 'react-router-dom';
-import { getDoc } from 'firebase/firestore';
 import { getAuth } from "firebase/auth";
 
 export default function DailyReports() {
@@ -13,93 +12,31 @@ export default function DailyReports() {
   const [studentsList, setStudentsList] = useState([]);
   const today = new Date().toISOString().slice(0, 10);
   const location = useLocation();
+  const [studentClass, setStudentClass] = useState('');
+
   function formatInTime(rawTime) {
-  if (!rawTime) return '';
-  const date = new Date(`1970-01-01T${rawTime}`);
-  if (isNaN(date.getTime())) return ''; // invalid format fallback
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${hours}:${minutes}`;
-}
-function convertTo24HourTime(time12h) {
-  if (!time12h) return '';
-  const [time, modifier] = time12h.split(' ');
-  let [hours, minutes] = time.split(':');
-
-  if (modifier.toLowerCase() === 'pm' && hours !== '12') {
-    hours = String(parseInt(hours, 10) + 12);
-  }
-  if (modifier.toLowerCase() === 'am' && hours === '12') {
-    hours = '00';
+    if (!rawTime) return '';
+    const date = new Date(`1970-01-01T${rawTime}`);
+    if (isNaN(date.getTime())) return ''; // invalid format fallback
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
   }
 
-  return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
-}
-
-
-useEffect(() => {
-  const fetchThemeOfDay = async () => {
-    try {
-      const auth = getAuth(); // 👈 if not already imported, add this
-      const teacherId = auth.currentUser?.email || "default_teacher";
-      const ref = doc(db, "daily_themes", teacherId);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        const dayThemes = snap.data()[today];
-        if (dayThemes) {
-          // Flatten all tags from all selected categories into a single list
-          const allTags = Object.values(dayThemes).flat();
-          setForm(prev => ({ ...prev, theme: allTags }));
-        }
-      }
-    } catch (err) {
-      console.error("Error loading theme of the day:", err);
+  function convertTo24HourTime(time12h) {
+    if (!time12h) return '';
+    const [time, modifier] = time12h.split(' ');
+    let [hours, minutes] = time.split(':');
+    if (modifier && modifier.toLowerCase() === 'pm' && hours !== '12') {
+      hours = String(parseInt(hours, 10) + 12);
     }
-  };
-
-  fetchThemeOfDay();
-}, [today]);
-
-
-
-  // Fetch students from Firestore (only present students with inTime)
-  useEffect(() => {
-  if (location.state) {
-    const { student_id, name, inTime } = location.state;
-    setForm(prev => ({
-      ...prev,
-      student_id,
-      name,
-      inTime
-    }));
+    if (modifier && modifier.toLowerCase() === 'am' && hours === '12') {
+      hours = '00';
+    }
+    return `${hours.padStart(2, '0')}:${minutes}`;
   }
-}, [location.state]);
 
-  useEffect(() => {
-    const fetchStudents = async () => {
-      try {
-        // Get all attendance records for today
-        const attendanceSnapshot = await getDocs(collection(db, "attendance_records"));
-        const presentAttendance = attendanceSnapshot.docs
-          .map(doc => doc.data())
-          .filter(a => a.date === today && a.isPresent);
-        const presentStudentIds = presentAttendance.map(a => a.student_id);
-
-        // Get student details for present students, including inTime
-        const studentsSnapshot = await getDocs(collection(db, "students"));
-        const allStudents = studentsSnapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id
-        }));
-        const presentStudents = allStudents.filter(s => presentStudentIds.includes(s.student_id));
-        setStudentsList(presentStudents);
-      } catch (error) {
-        console.error("Error fetching students:", error);
-      }
-    };
-    fetchStudents();
-  }, [today]);
-
+  // Search, date, and form state
   const [search, setSearch] = useState('');
   const [date, setDate] = useState(today);
   const [form, setForm] = useState({
@@ -132,34 +69,71 @@ useEffect(() => {
   const learningOptions = [
     "Developing Skills", "Completed With Assistance", "Completed Independently"
   ];
-  
 
-  // Handlers
+  // Load present students
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const attendanceSnapshot = await getDocs(collection(db, "attendance_records"));
+        const presentAttendance = attendanceSnapshot.docs
+          .map(doc => doc.data())
+          .filter(a => a.date === today && a.isPresent);
+        const presentStudentIds = presentAttendance.map(a => a.student_id);
+
+        const studentsSnapshot = await getDocs(collection(db, "students"));
+        const allStudents = studentsSnapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        }));
+        const presentStudents = allStudents.filter(s => presentStudentIds.includes(s.student_id));
+        setStudentsList(presentStudents);
+      } catch (error) {
+        console.error("Error fetching students:", error);
+      }
+    };
+    fetchStudents();
+  }, [today]);
+
+  // Set initial form from location if provided
+  useEffect(() => {
+    if (location.state) {
+      const { student_id, name, inTime } = location.state;
+      setForm(prev => ({
+        ...prev,
+        student_id,
+        name,
+        inTime
+      }));
+    }
+  }, [location.state]);
+
+  // When you select a student, also fetch their class and set it in state
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
- if (name === "student_id") {
-  const fetchStudent = async () => {
-    try {
-      const q = query(collection(db, "students"), where("student_id", "==", value));
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const studentData = snapshot.docs[0].data();
-        setForm(prev => ({
-          ...prev,
-          student_id: value,
-          name: studentData.name || '',
-          inTime: convertTo24HourTime(studentData.inTime || ''), // 💡 convert here
-          outTime: '',
-        }));
-      }
-    } catch (err) {
-      console.error("Error fetching student:", err);
-    }
-  };
-  fetchStudent();
-}
-
- else if (name.startsWith("ouch.") || name.startsWith("incident.")) {
+    if (name === "student_id") {
+      const fetchStudent = async () => {
+        try {
+          const q = query(collection(db, "students"), where("student_id", "==", value));
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty) {
+            const studentData = snapshot.docs[0].data();
+            setForm(prev => ({
+              ...prev,
+              student_id: value,
+              name: studentData.name || '',
+              inTime: convertTo24HourTime(studentData.inTime || ''),
+              outTime: '',
+            }));
+            setStudentClass(studentData.className || ''); // Change this if your field is just "class"
+          } else {
+            setStudentClass('');
+          }
+        } catch (err) {
+          console.error("Error fetching student:", err);
+        }
+      };
+      fetchStudent();
+    } else if (name.startsWith("ouch.") || name.startsWith("incident.")) {
       const [section, field] = name.split(".");
       setForm((prev) => ({
         ...prev,
@@ -172,6 +146,7 @@ useEffect(() => {
     }
   };
 
+  // Handle other form logic
   const handleFeelings = (feeling) => {
     setForm((prev) => ({
       ...prev,
@@ -241,6 +216,7 @@ useEffect(() => {
         theme: [],
         themeDetails: Array(5).fill(''),
       });
+      setStudentClass('');
     } catch (error) {
       alert("Failed to submit report: " + error.message);
     }
@@ -249,6 +225,50 @@ useEffect(() => {
   const handleNav = (route) => {
     if (route) navigate(route);
   };
+
+  // ---------- THEME-OF-DAY LOGIC BASED ON SELECTED CLASS AND STUDENT ----------
+  useEffect(() => {
+    const fetchThemeOfDay = async () => {
+      // Only fetch when both student and their class are selected
+      if (!form.student_id || !studentClass || !date) {
+        setForm(prev => ({ ...prev, theme: [] }));
+        return;
+      }
+      try {
+        const auth = getAuth();
+        const teacherId = auth.currentUser?.email || "default_teacher";
+        const ref = doc(db, "daily_themes", teacherId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const dayThemes = snap.data()[date];
+          if (dayThemes) {
+            const themeClass = dayThemes.selectedClass || '';
+            if (themeClass && studentClass && themeClass === studentClass) {
+              const sectionTags = { ...dayThemes };
+              delete sectionTags.selectedClass;
+              // Collect all tags from all categories:
+              const allTags = Object.values(sectionTags)
+                .filter(v => Array.isArray(v))
+                .flat();
+              setForm(prev => ({ ...prev, theme: allTags }));
+            } else {
+              setForm(prev => ({ ...prev, theme: [] }));
+            }
+          } else {
+            setForm(prev => ({ ...prev, theme: [] }));
+          }
+        } else {
+          setForm(prev => ({ ...prev, theme: [] }));
+        }
+      } catch (err) {
+        console.error("Error loading theme of the day:", err);
+        setForm(prev => ({ ...prev, theme: [] }));
+      }
+    };
+    fetchThemeOfDay();
+    // Only when all these change:
+  }, [form.student_id, studentClass, date]);
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="daily-bg">
@@ -561,29 +581,27 @@ useEffect(() => {
             <label>Theme of the day</label>
             <div className="theme-tags">
               {form.theme.map((tag) => (
-  <button
-    type="button"
-    key={tag}
-    className="btn selected small"
-    onClick={() => handleTheme(tag)}
-  >
-    {tag}
-  </button>
-))}
-
+                <button
+                  type="button"
+                  key={tag}
+                  className="btn selected small"
+                  onClick={() => handleTheme(tag)}
+                >
+                  {tag}
+                </button>
+              ))}
             </div>
             {form.theme.map((tag, i) => (
-  <input
-    key={i}
-    className="input"
-    type="text"
-    placeholder={`Theme detail ${i + 1}`}
-    value={form.themeDetails[i] || ''}
-    onChange={(e) => handleThemeDetail(i, e.target.value)}
-    style={{ marginTop: 6 }}
-  />
-))}
-
+              <input
+                key={i}
+                className="input"
+                type="text"
+                placeholder={`Theme detail ${i + 1}`}
+                value={form.themeDetails[i] || ''}
+                onChange={(e) => handleThemeDetail(i, e.target.value)}
+                style={{ marginTop: 6 }}
+              />
+            ))}
           </div>
           {/* Buttons */}
           <div className="row btn-row">
@@ -596,10 +614,8 @@ useEffect(() => {
           </div>
         </form>
       </main>
-  
 
-
-      {/* CSS */}
+      {/* (CSS as before, not changed) */}
       <style>{`
         .daily-bg {
           min-height: 100vh;
