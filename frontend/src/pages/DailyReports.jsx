@@ -1,44 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Calendar, Search } from 'lucide-react';
 import giraffeIcon from "../assets/Logo.png";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { db } from '../firebase/firebase';
 import { collection, getDocs, Timestamp, doc, setDoc, query, where, getDoc } from 'firebase/firestore';
-import { useLocation } from 'react-router-dom';
 import { getAuth } from "firebase/auth";
 
 export default function DailyReports() {
   const navigate = useNavigate();
-  const [studentsList, setStudentsList] = useState([]);
-  const today = new Date().toISOString().slice(0, 10);
   const location = useLocation();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [studentsList, setStudentsList] = useState([]);
   const [studentClass, setStudentClass] = useState('');
-
-  function formatInTime(rawTime) {
-    if (!rawTime) return '';
-    const date = new Date(`1970-01-01T${rawTime}`);
-    if (isNaN(date.getTime())) return ''; // invalid format fallback
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-  }
-
-  function convertTo24HourTime(time12h) {
-    if (!time12h) return '';
-    const [time, modifier] = time12h.split(' ');
-    let [hours, minutes] = time.split(':');
-    if (modifier && modifier.toLowerCase() === 'pm' && hours !== '12') {
-      hours = String(parseInt(hours, 10) + 12);
-    }
-    if (modifier && modifier.toLowerCase() === 'am' && hours === '12') {
-      hours = '00';
-    }
-    return `${hours.padStart(2, '0')}:${minutes}`;
-  }
-
-  // Search, date, and form state
   const [search, setSearch] = useState('');
   const [date, setDate] = useState(today);
+
+  // Main form state
   const [form, setForm] = useState({
     student_id: '',
     name: '',
@@ -62,7 +40,6 @@ export default function DailyReports() {
     themeDetails: Array(5).fill(''),
   });
 
-  // Options
   const feelingsOptions = [
     "Curious", "Attentive", "Interactive", "Naughty", "Active", "Disinterested"
   ];
@@ -70,7 +47,21 @@ export default function DailyReports() {
     "Developing Skills", "Completed With Assistance", "Completed Independently"
   ];
 
-  // Load present students
+  // Ensure "inTime" is always converted for <input type="time" />
+  function parseTo24h(timeString) {
+    if (!timeString) return "";
+    // Already in 24h format
+    if (/^\d\d:\d\d$/.test(timeString.trim())) return timeString.trim();
+    // Try 12h "10:25 AM"
+    let [time, modifier] = timeString.trim().split(' ');
+    if (!modifier) return "";
+    let [hours, minutes] = time.split(":").map(Number);
+    if (modifier.toLowerCase() === "pm" && hours !== 12) hours += 12;
+    if (modifier.toLowerCase() === "am" && hours === 12) hours = 0;
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2,"0")}`;
+  }
+
+  // Fetch present students for today
   useEffect(() => {
     const fetchStudents = async () => {
       try {
@@ -94,23 +85,24 @@ export default function DailyReports() {
     fetchStudents();
   }, [today]);
 
-  // Set initial form from location if provided
+  // Pre-set form fields from navigation (HomeScreen) using location.state
   useEffect(() => {
-    if (location.state) {
-      const { student_id, name, inTime } = location.state;
+    if (location.state && location.state.student_id) {
       setForm(prev => ({
         ...prev,
-        student_id,
-        name,
-        inTime
+        student_id: location.state.student_id,
+        name: location.state.name || "",
+        inTime: parseTo24h(location.state.inTime) || "",
+        outTime: "",
       }));
     }
   }, [location.state]);
 
-  // When you select a student, also fetch their class and set it in state
+  // Fetch student class and re-set relevant form fields and inTime
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     if (name === "student_id") {
+      // Fetch student profile on selection
       const fetchStudent = async () => {
         try {
           const q = query(collection(db, "students"), where("student_id", "==", value));
@@ -120,11 +112,12 @@ export default function DailyReports() {
             setForm(prev => ({
               ...prev,
               student_id: value,
-              name: studentData.name || '',
-              inTime: convertTo24HourTime(studentData.inTime || ''),
+              name: studentData.name || "",
+              // convert to usable format for <input type="time" />
+              inTime: parseTo24h(studentData.inTime),
               outTime: '',
             }));
-            setStudentClass(studentData.className || ''); // Change this if your field is just "class"
+            setStudentClass(studentData.className || "");
           } else {
             setStudentClass('');
           }
@@ -135,18 +128,18 @@ export default function DailyReports() {
       fetchStudent();
     } else if (name.startsWith("ouch.") || name.startsWith("incident.")) {
       const [section, field] = name.split(".");
-      setForm((prev) => ({
+      setForm(prev => ({
         ...prev,
         [section]: { ...prev[section], [field]: value },
       }));
     } else if (type === "checkbox") {
-      setForm((prev) => ({ ...prev, [name]: checked }));
+      setForm(prev => ({ ...prev, [name]: checked }));
     } else {
-      setForm((prev) => ({ ...prev, [name]: value }));
+      setForm(prev => ({ ...prev, [name]: value }));
     }
   };
 
-  // Handle other form logic
+  // Tag + button helpers
   const handleFeelings = (feeling) => {
     setForm((prev) => ({
       ...prev,
@@ -155,11 +148,7 @@ export default function DailyReports() {
         : [...prev.feelings, feeling],
     }));
   };
-
-  const handleLearning = (option) => {
-    setForm((prev) => ({ ...prev, learning: option }));
-  };
-
+  const handleLearning = (option) => setForm((prev) => ({ ...prev, learning: option }));
   const handleTheme = (tag) => {
     setForm((prev) => ({
       ...prev,
@@ -168,26 +157,25 @@ export default function DailyReports() {
         : [...prev.theme, tag],
     }));
   };
-
   const handleThemeDetail = (i, value) => {
-    setForm((prev) => {
-      const arr = [...prev.themeDetails];
-      arr[i] = value;
-      return { ...prev, themeDetails: arr };
+    setForm(prev => {
+      const details = [...prev.themeDetails];
+      details[i] = value;
+      return { ...prev, themeDetails: details };
     });
   };
 
+  // Submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const selectedStudentId = form.student_id;
-    if (!selectedStudentId) {
+    if (!form.student_id) {
       alert("Please select a child before submitting the report.");
       return;
     }
-    const reportId = `${selectedStudentId}_${today}`;
+    const reportId = `${form.student_id}_${today}`;
     const reportData = {
       ...form,
-      student_id: selectedStudentId,
+      student_id: form.student_id,
       date: today,
       submittedAt: Timestamp.now()
     };
@@ -222,14 +210,14 @@ export default function DailyReports() {
     }
   };
 
+  // Nav handler
   const handleNav = (route) => {
     if (route) navigate(route);
   };
 
-  // ---------- THEME-OF-DAY LOGIC BASED ON SELECTED CLASS AND STUDENT ----------
+  // Theme of the Day logic
   useEffect(() => {
     const fetchThemeOfDay = async () => {
-      // Only fetch when both student and their class are selected
       if (!form.student_id || !studentClass || !date) {
         setForm(prev => ({ ...prev, theme: [] }));
         return;
@@ -246,7 +234,6 @@ export default function DailyReports() {
             if (themeClass && studentClass && themeClass === studentClass) {
               const sectionTags = { ...dayThemes };
               delete sectionTags.selectedClass;
-              // Collect all tags from all categories:
               const allTags = Object.values(sectionTags)
                 .filter(v => Array.isArray(v))
                 .flat();
@@ -266,9 +253,13 @@ export default function DailyReports() {
       }
     };
     fetchThemeOfDay();
-    // Only when all these change:
   }, [form.student_id, studentClass, date]);
-  // ---------------------------------------------------------------------------
+
+  // Search filter for dropdown
+  const filteredStudents = studentsList.filter(s =>
+    s.name.toLowerCase().includes(search.toLowerCase()) ||
+    (s.student_id || '').toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="daily-bg">
@@ -325,7 +316,6 @@ export default function DailyReports() {
           <div className="profile-avatar">👩</div>
         </div>
       </header>
-
       {/* Main Content */}
       <main className="daily-main">
         <h2 className="main-title">Daily reports:</h2>
@@ -340,7 +330,7 @@ export default function DailyReports() {
               onChange={handleChange}
             >
               <option value="">Select Child</option>
-              {studentsList.map((s) => (
+              {filteredStudents.map((s) => (
                 <option key={s.student_id} value={s.student_id}>
                   {s.name} ({s.student_id})
                 </option>
@@ -614,6 +604,7 @@ export default function DailyReports() {
           </div>
         </form>
       </main>
+ 
 
       {/* (CSS as before, not changed) */}
       <style>{`

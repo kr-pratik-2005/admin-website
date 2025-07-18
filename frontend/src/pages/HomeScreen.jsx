@@ -32,8 +32,47 @@ const [sending, setSending] = useState(false);
   const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
   const lastDay = new Date(year, month, totalDays).toISOString().split('T')[0];
 
+  const [showLeaveRequestsModal, setShowLeaveRequestsModal] = useState(false);
+const [leaveRequests, setLeaveRequests] = useState([]);
+const [loadingLeaves, setLoadingLeaves] = useState(false);
+
   // Midnight Reset Logic
   const lastCheckedDateRef = useRef(todayStr);
+  useEffect(() => {
+  if (showLeaveRequestsModal) {
+    setLoadingLeaves(true);
+    getDocs(collection(db, 'leave_requests'))
+      .then(snapshot => {
+        const leaves = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        // optional: sort by date_submitted descending
+        leaves.sort((a, b) => (b.date_submitted || '').localeCompare(a.date_submitted || ''));
+        setLeaveRequests(leaves);
+      })
+      .catch(err => {
+        alert('Failed to load leave requests');
+        setLeaveRequests([]);
+        console.error(err);
+      })
+      .finally(() => setLoadingLeaves(false));
+  }
+}, [showLeaveRequestsModal]);
+
+const handleStudentNameClick = (student) => {
+  if (!student.isPresent) {
+    alert('Student is not marked present yet');
+    return;
+  }
+  navigate('/daily-reports', {
+    state: {
+      student_id: student.student_id,
+      name: student.name,
+      inTime: student.inTime || ''
+    }
+  });
+};
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -488,6 +527,21 @@ const [sending, setSending] = useState(false);
               Gallery
             </button>
             <button
+    style={{
+      backgroundColor: 'white',
+      border: '1px solid #d1d5db',
+      borderRadius: '8px',
+      padding: '0.5rem 1rem',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem'
+    }}
+    onClick={() => setShowLeaveRequestsModal(true)}
+  >
+    📝 Leave Requests
+  </button>
+            <button
   style={{
     backgroundColor: '#8b5cf6',
     color: 'white',
@@ -728,29 +782,38 @@ const [sending, setSending] = useState(false);
                         alignItems: 'center',
                         gap: '0.75rem'
                       }}>
-                        <div style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          backgroundColor: '#e5e7eb',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '1.5rem'
-                        }}>
-                          {student.avatar}
-                        </div>
-                        <Link
-  to={`/view-report/${student.student_id}`}
-  style={{
-    color: '#374151',
-    fontWeight: '500',
-    textDecoration: 'underline',
-    cursor: 'pointer'
-  }}
->
-  {student.name}
-</Link>
+                        
+     <td style={{
+  padding: '1rem',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.75rem'
+}}>
+  <div style={{
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    backgroundColor: '#e5e7eb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1.5rem'
+  }}>
+    {student.avatar}
+  </div>
+  <span
+    onClick={() => handleStudentNameClick(student)}
+    style={{
+      color: '#374151',
+      fontWeight: '500',
+      textDecoration: 'underline',
+      cursor: 'pointer'
+    }}
+  >
+    {student.name}
+  </span>
+</td>
+
 
                       </td>
                       <td style={{
@@ -929,6 +992,76 @@ const [sending, setSending] = useState(false);
     </div>
   </div>
 )}
+{/* ===== Leave Requests Modal ===== */}
+{showLeaveRequestsModal && (
+  <div style={{
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 3000
+  }}>
+    <div style={{
+      background: 'white', borderRadius: '8px', padding: '2rem',
+      minWidth: '350px', maxWidth: '90%', maxHeight: '90vh', overflowY: 'auto'
+    }}>
+      <h2>Leave Requests</h2>
+      <button
+        onClick={() => setShowLeaveRequestsModal(false)}
+        style={{
+          position: 'absolute', top: '24px', right: '32px',
+          background: 'transparent', border: 'none', color: '#888', fontSize: 26, cursor: 'pointer'
+        }}
+        aria-label="Close"
+      >×</button>
+
+      {loadingLeaves ? (
+        <p>Loading leave requests...</p>
+      ) : (
+        <>
+          {leaveRequests.length === 0 ? (
+            <p>No leave requests found.</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
+              <thead>
+                <tr style={{ background: '#eee' }}>
+                  <th style={{ padding: '0.5rem', fontWeight: 600 }}>Student ID</th>
+                  <th style={{ padding: '0.5rem', fontWeight: 600 }}>Type</th>
+                  <th style={{ padding: '0.5rem', fontWeight: 600 }}>From</th>
+                  <th style={{ padding: '0.5rem', fontWeight: 600 }}>To</th>
+                  <th style={{ padding: '0.5rem', fontWeight: 600 }}>Reason</th>
+                  <th style={{ padding: '0.5rem', fontWeight: 600 }}>Status</th>
+                  <th style={{ padding: '0.5rem', fontWeight: 600 }}>Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaveRequests.map(req => (
+                  <tr key={req.id}>
+                    <td style={{ padding: '0.5rem' }}>{req.student_id}</td>
+                    <td style={{ padding: '0.5rem' }}>
+                      {req.today_leave !== null ? "Today's Leave" : "Future Leave"}
+                    </td>
+                    <td style={{ padding: '0.5rem' }}>
+                      {req.today_leave !== null ? req.today_leave : req.future_from}
+                    </td>
+                    <td style={{ padding: '0.5rem' }}>
+                      {req.today_leave !== null ? req.today_leave : req.future_to}
+                    </td>
+                    <td style={{ padding: '0.5rem', maxWidth: 100 }}>{req.today_leave !== null ? req.today_reason : req.future_reason}</td>
+                    <td style={{ padding: '0.5rem' }}>{req.status}</td>
+                    <td style={{ padding: '0.5rem', minWidth: 130 }}>
+                      {req.date_submitted ? new Date(req.date_submitted).toLocaleString() : ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+    </div>
+  </div>
+)}
+
 
     </div>
   );

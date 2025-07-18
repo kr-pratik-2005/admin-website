@@ -47,7 +47,7 @@ export default function EditInvoice() {
       const contact = studentData.contact || "";
 
       // 2. Call your backend to create real Razorpay payment link
-      const res = await fetch("http://localhost:5000/create_payment_link", {
+      const res = await fetch("https://mkfeez.mimansakids.com/create_payment_link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
