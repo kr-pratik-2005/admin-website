@@ -38,6 +38,42 @@ const [loadingLeaves, setLoadingLeaves] = useState(false);
 
   // Midnight Reset Logic
   const lastCheckedDateRef = useRef(todayStr);
+
+useEffect(() => {
+  // Check every minute if the day has changed
+  const interval = setInterval(async () => {
+    const now = new Date();
+    // Get date in YYYY-MM-DD format
+    const currentDate = now.toISOString().split('T')[0];
+    if (lastCheckedDateRef.current !== currentDate) {
+      // Date changed! It's a new day.
+      try {
+        // Set all students to isPresent: false, inTime: null
+        const studentsSnapshot = await getDocs(collection(db, "students"));
+        const batchUpdates = studentsSnapshot.docs.map(docSnap => {
+          return updateDoc(doc(db, "students", docSnap.id), {
+            isPresent: false,
+            inTime: null
+          });
+        });
+        await Promise.all(batchUpdates);
+
+        // Optionally refresh the state
+        const refreshed = await getDocs(collection(db, "students"));
+        setStudents(refreshed.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })));
+      } catch (error) {
+        console.error("Failed to reset attendance and inTime after 12am:", error);
+      }
+      lastCheckedDateRef.current = currentDate;
+    }
+  }, 60000); // run every minute
+
+  return () => clearInterval(interval);
+}, []);
+
   useEffect(() => {
   if (showLeaveRequestsModal) {
     setLoadingLeaves(true);
@@ -192,7 +228,9 @@ const handleStudentNameClick = (student) => {
   const gradeOrder = {
     "Playgroup": 1,
     "Nursery": 2,
-    "Pre primary I": 3
+    "Pre primary I": 3,
+    "Pre primary II": 4,
+  "Pre primary III": 5
   };
 
   const sortedStudents = [...students].sort((a, b) => {
@@ -229,7 +267,8 @@ const handleStudentNameClick = (student) => {
     }
   };
 
-  const grades = ["Playgroup", "Nursery", "Pre primary I"];
+const grades = ["Playgroup", "Nursery", "Pre primary I", "Pre-primary-II", "Pre-primary-III"];
+
   const attendanceByGrade = grades.map(grade => {
     const studentsInGrade = students.filter(s => s.grade === grade);
     const presentCount = studentsInGrade.filter(s => s.isPresent).length;
@@ -238,6 +277,8 @@ const handleStudentNameClick = (student) => {
     let avatar = "👶";
     if (grade === "Nursery") avatar = "👧";
     if (grade === "Pre primary I") avatar = "👦";
+    if (grade === "Pre primary II") avatar = "🧒";
+  if (grade === "Pre primary III") avatar = "🧑";
     return {
       grade,
       presentCount,

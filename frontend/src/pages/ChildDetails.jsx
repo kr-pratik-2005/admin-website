@@ -1,7 +1,10 @@
-import React, { useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
+
 import { useNavigate, useLocation } from 'react-router-dom';
 import giraffeIcon from "../assets/Logo.png";
 import { ChildDataContext } from "./ChildProfileFlow";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../firebase/firebase"; // Adjust path as needed!
 
 export default function ChildDetails() {
   const navigate = useNavigate();
@@ -9,11 +12,33 @@ export default function ChildDetails() {
   const { childData, setChildData } = useContext(ChildDataContext);
 
   const details = childData?.details || {};
+const [showEditModal, setShowEditModal] = useState(false);
+const [childList, setChildList] = useState([]);
+const [loadingChildren, setLoadingChildren] = useState(false);
+// Helper to get all children
+const fetchAllChildren = async () => {
+  setLoadingChildren(true);
+  setChildList([]); // reset old list on open
+  const snap = await getDocs(collection(db, "child_profiles"));
+  const kids = snap.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data()
+  }));
+  setChildList(kids);
+  setLoadingChildren(false);
+};
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    const finalValue = name === "parentMobile" ? value.replace(/\D/g, "") : value;
-
+    let finalValue = value;
+    if (
+      name === "parentMobile" ||
+      name === "motherContact" ||
+      name === "fatherContact"
+    ) {
+      finalValue = value.replace(/\D/g, ""); // only digits
+    }
     setChildData(prev => ({
       ...prev,
       details: {
@@ -49,7 +74,18 @@ export default function ChildDetails() {
           </nav>
         </div>
         <div className="header-right">
-          <button className="add-btn">+ Add New Child</button>
+<button
+  className="add-btn"
+  style={{ background: "#ffd86b", color: "#333" }}
+  onClick={async (e) => {
+    e.preventDefault();
+    setShowEditModal(true);
+    await fetchAllChildren();
+  }}
+>
+  Edit current child data
+</button>
+
         </div>
       </header>
 
@@ -89,6 +125,32 @@ export default function ChildDetails() {
             </div>
 
             <div className="form-group">
+              <label>Mother's Contact Number</label>
+              <input
+                className="input"
+                type="text"
+                name="motherContact"
+                placeholder="1234567890"
+                maxLength={10}
+                value={details.motherContact || ""}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Father's Contact Number</label>
+              <input
+                className="input"
+                type="text"
+                name="fatherContact"
+                placeholder="1234567890"
+                maxLength={10}
+                value={details.fatherContact || ""}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="form-group">
               <label>Block & Flat No</label>
               <input
                 className="input"
@@ -107,8 +169,59 @@ export default function ChildDetails() {
             </div>
           </div>
         </form>
+        {showEditModal && (
+  <div style={{
+    position: "fixed", left: 0, top: 0, width: "100vw", height: "100vh",
+    background: "rgba(0,0,0,0.3)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
+  }}>
+    <div style={{
+      background: "white",
+      borderRadius: 12,
+      minWidth: 320,
+      maxWidth: 400,
+      padding: "1.5rem",
+      boxShadow: "0 4px 18px rgba(0,0,0,0.11)"
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <b style={{ fontSize: "1.11rem" }}>Select a child to edit</b>
+        <button style={{
+            border: "none", background: "none", fontSize: 22, lineHeight: 1, cursor: "pointer", color: "#aaa"
+          }} onClick={() => setShowEditModal(false)}>×</button>
+      </div>
+      <div style={{ marginTop: 18, maxHeight: 320, overflow: "auto" }}>
+        {loadingChildren && <div style={{ padding: 10 }}>Loading...</div>}
+        {!loadingChildren && childList.length === 0 && <div style={{ padding: 8, color: "#777" }}>No children found.</div>}
+        {!loadingChildren && childList.map((child) => (
+          <div
+            key={child.id}
+            style={{
+              background: "#f7fafc",
+              borderRadius: 6,
+              padding: "13px 16px",
+              marginBottom: 8,
+              cursor: "pointer",
+              border: "1px solid #eee",
+              fontWeight: 500,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              transition: "background 0.17s"
+            }}
+            onClick={() => {
+              setShowEditModal(false);
+              setChildData(child); // set everything fetched (all maps under child)
+            }}
+          >
+            <span style={{ fontSize: 15, color: "#222" }}>{child?.report?.name || "(No Name)"}</span>
+            <span style={{ fontSize: 12, color: "#9473d3", marginTop: 2 }}>{child?.report?.student_id}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
+
       </main>
- 
 
 
       <style>{`

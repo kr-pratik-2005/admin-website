@@ -1,20 +1,40 @@
-import React, { useContext } from "react";
+import React, { useState, useContext } from "react";
 import giraffeIcon from "../assets/Logo.png";
 import { useNavigate, useLocation } from "react-router-dom";
-
-// Firebase
 import { db } from "../firebase/firebase";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
-
-// Context
+import {
+  collection,
+  addDoc,
+  Timestamp,
+  getDocs,
+  doc,
+  query,
+  where,
+  setDoc,
+} from "firebase/firestore";
 import { ChildDataContext } from "./ChildProfileFlow";
 
 export default function ChildAdditionalInfo() {
   const navigate = useNavigate();
   const location = useLocation();
   const { childData, setChildData } = useContext(ChildDataContext);
-
   const additional = childData?.additional || {};
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [childList, setChildList] = useState([]);
+  const [loadingChildren, setLoadingChildren] = useState(false);
+
+  // Helper to get all children
+  const fetchAllChildren = async () => {
+    setLoadingChildren(true);
+    setChildList([]);
+    const snap = await getDocs(collection(db, "child_profiles"));
+    const kids = snap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    setChildList(kids);
+    setLoadingChildren(false);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -27,22 +47,114 @@ export default function ChildAdditionalInfo() {
     }));
   };
 
+  // ✅ Function to get number of days in the current month
+  const getDaysInCurrentMonth = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  };
+
+  // ============= UPDATED handleSave ===============
   const handleSave = async (e) => {
     e.preventDefault();
+    const { report = {}, details = {} } = childData;
+
+    // Grab all required fields
+    const studentId      = report.student_id?.trim();
+    const name           = report.name?.trim();
+    const nick_name      = report.nick_name?.trim();
+    const dob            = report.dob?.trim();
+    const className      = report.class?.trim();
+    const blood_group    = report.blood_group?.trim();
+    const address        = details.blockFlat?.trim();
+    const contact        = details.parentMobile?.trim();
+    const father_contact = details.fatherContact?.trim();
+    const mother_contact = details.motherContact?.trim();
+    const father_name    = details.fatherName?.trim();
+    const mother_name    = details.motherName?.trim();
+
+    const missing = [];
+    if (!studentId)      missing.push("Student ID");
+    if (!name)           missing.push("Name");
+    if (!nick_name)      missing.push("Nick Name");
+    if (!dob)            missing.push("Date of Birth");
+    if (!className)      missing.push("Class");
+    if (!blood_group)    missing.push("Blood Group");
+    if (!address)        missing.push("Address");
+    if (!contact)        missing.push("Contact");
+    if (!father_contact) missing.push("Father's Contact");
+    if (!mother_contact) missing.push("Mother's Contact");
+    if (!father_name)    missing.push("Father's Name");
+    if (!mother_name)    missing.push("Mother's Name");
+
+    if (missing.length) {
+      alert("❌ Please fill in the following required fields before submitting:\n\n" + missing.join(", "));
+      return;
+    }
+
+    // -- original logic unchanged below --
+    const today = new Date().toISOString().split("T")[0];
+    const totalDays = getDaysInCurrentMonth();
 
     try {
-      await addDoc(collection(db, "child_profiles"), {
+      // Step 1: Save child profile with student_id as doc ID
+      await setDoc(doc(db, "child_profiles", studentId), {
         ...childData,
         createdAt: Timestamp.now(),
       });
 
-      alert("✅ Form Submitted & Saved successfully to Firebase!");
+      // Step 2: Check if student already exists in 'students'
+      const studentsRef = collection(db, "students");
+      const q = query(studentsRef, where("student_id", "==", studentId));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        const studentDoc = {
+          student_id: studentId,
+          name: report.name || "",
+          nick_name: report.nick_name || "",
+          dob: report.dob || "",
+          grade: className,
+          joined_date: report.joining_date
+            ? Timestamp.fromDate(new Date(report.joining_date))
+            : Timestamp.now(),
+          address: details.blockFlat || "",
+          contact: details.parentMobile || "",
+          father_contact: details.fatherContact || "",
+          mother_contact: details.motherContact || "",
+          father_name: details.fatherName || "",
+          mother_name: details.motherName || "",
+          parent_name:  details.fatherName || "",
+          blood_group: report.blood_group || "",
+          date: today,
+        };
+
+        await addDoc(studentsRef, studentDoc);
+        console.log("📘 New student added to 'students' collection.");
+      } else {
+        console.log("🔍 Student already exists in 'students'.");
+      }
+
+      // ✅ Step 3: Add to attendance_records with attendance object
+      await addDoc(collection(db, "attendance_records"), {
+        student_id: studentId,
+        date: today,
+        isPresent: false,
+        class: className,
+        attendance: {
+          presentDays: 0,
+          totalDays: totalDays,
+        },
+      });
+
+      console.log("🗓️ Attendance record created with attendance object.");
+      alert("✅ Child profile saved successfully!");
       navigate("/home");
     } catch (error) {
-      console.error("Error saving child data:", error);
-      alert("❌ Failed to save data: " + error.message);
+      console.error("❌ Error saving data:", error);
+      alert("Error: " + error.message);
     }
   };
+  // ========== END handleSave ==========
 
   const handleBack = () => {
     navigate("/child-profile/daily-routine");
@@ -67,14 +179,23 @@ export default function ChildAdditionalInfo() {
             </nav>
           </div>
           <div className="header-right">
-            <button className="add-btn">+ Add New Child</button>
+            <button
+              className="add-btn"
+              style={{ background: "#ffd86b", color: "#333" }}
+              onClick={async (e) => {
+                e.preventDefault();
+                setShowEditModal(true);
+                await fetchAllChildren();
+              }}
+            >
+              Edit current child data
+            </button>
           </div>
         </header>
 
         {/* Main Content */}
         <main className="child-main">
           <h2 className="main-title">Child Data</h2>
-
           {/* Tab Bar */}
           <div className="tab-bar">
             <button className={`tab${isActive("/child-profile/child-report") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/child-report")}>Basic Information</button>
@@ -84,7 +205,6 @@ export default function ChildAdditionalInfo() {
             <button className={`tab${isActive("/child-profile/daily-routine") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/daily-routine")}>Daily Routine</button>
             <button className={`tab${isActive("/child-profile/additional-info") ? " tab-active" : ""}`} onClick={() => navigate("/child-profile/additional-info")}>Additional Information</button>
           </div>
-
           {/* Form */}
           <form className="child-form" onSubmit={handleSave}>
             <div className="form-section">
@@ -92,7 +212,6 @@ export default function ChildAdditionalInfo() {
                 <span className="section-icon">6</span>
                 Additional Information
               </div>
-
               <div className="form-group">
                 <label>Child communication for feelings & needs</label>
                 <input
@@ -104,7 +223,6 @@ export default function ChildAdditionalInfo() {
                   onChange={handleChange}
                 />
               </div>
-
               <div className="form-group">
                 <label>Anything want to share with us</label>
                 <input
@@ -116,7 +234,6 @@ export default function ChildAdditionalInfo() {
                   onChange={handleChange}
                 />
               </div>
-
               <div className="form-group">
                 <label>Your expectation from Mimansa Kids</label>
                 <input
@@ -128,7 +245,6 @@ export default function ChildAdditionalInfo() {
                   onChange={handleChange}
                 />
               </div>
-
               {/* Navigation Buttons */}
               <div className="form-btn-row">
                 <button type="button" className="back-btn" onClick={handleBack}>Back</button>
@@ -136,8 +252,63 @@ export default function ChildAdditionalInfo() {
               </div>
             </div>
           </form>
+          {showEditModal && (
+            <div style={{
+              position: "fixed", left: 0, top: 0, width: "100vw", height: "100vh",
+              background: "rgba(0,0,0,0.3)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              <div style={{
+                background: "white",
+                borderRadius: 12,
+                minWidth: 320,
+                maxWidth: 400,
+                padding: "1.5rem",
+                boxShadow: "0 4px 18px rgba(0,0,0,0.11)"
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <b style={{ fontSize: "1.11rem" }}>Select a child to edit</b>
+                  <button style={{
+                    border: "none", background: "none", fontSize: 22, lineHeight: 1, cursor: "pointer", color: "#aaa"
+                  }} onClick={() => setShowEditModal(false)}>×</button>
+                </div>
+                <div style={{ marginTop: 18, maxHeight: 320, overflow: "auto" }}>
+                  {loadingChildren && <div style={{ padding: 10 }}>Loading...</div>}
+                  {!loadingChildren && childList.length === 0 && <div style={{ padding: 8, color: "#777" }}>No children found.</div>}
+                  {!loadingChildren && childList.map((child) => (
+                    <div
+                      key={child.id}
+                      style={{
+                        background: "#f7fafc",
+                        borderRadius: 6,
+                        padding: "13px 16px",
+                        marginBottom: 8,
+                        cursor: "pointer",
+                        border: "1px solid #eee",
+                        fontWeight: 500,
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                        transition: "background 0.17s"
+                      }}
+                      onClick={() => {
+                        setShowEditModal(false);
+                        setChildData(child); // set everything fetched (all maps under child)
+                      }}
+                    >
+                      <span style={{ fontSize: 15, color: "#222" }}>{child?.report?.name || "(No Name)"}</span>
+                      <span style={{ fontSize: 12, color: "#9473d3", marginTop: 2 }}>{child?.report?.student_id}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
+  
+
+ 
+
 
       {/* CSS Styles */}
       <style>{`
