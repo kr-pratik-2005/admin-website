@@ -3,7 +3,7 @@ import giraffeIcon from "../assets/Logo.png";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChildDataContext } from "./ChildProfileFlow";
 
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
 export default function ChildReport() {
@@ -18,6 +18,9 @@ export default function ChildReport() {
   const [showEditModal, setShowEditModal] = useState(false);
 const [childList, setChildList] = useState([]);
 const [loadingChildren, setLoadingChildren] = useState(false);
+const [showRemoveModal, setShowRemoveModal] = useState(false);
+const [removingChildId, setRemovingChildId] = useState(null); // So we can show loading state
+
 // Helper to get all children
 const fetchAllChildren = async () => {
   setLoadingChildren(true);
@@ -30,6 +33,30 @@ const fetchAllChildren = async () => {
   setChildList(kids);
   setLoadingChildren(false);
 };
+const handleRemoveChild = async (child) => {
+  setRemovingChildId(child.id);
+
+  // First, delete from child_profiles
+  await deleteDoc(doc(db, "child_profiles", child.id));
+
+  // Then, search for student in "students" collection by student_id
+  if (child?.report?.student_id) {
+    // Find document in "students" with same student_id
+    const studentSnap = await getDocs(query(
+      collection(db, "students"),
+      where("student_id", "==", child.report.student_id)
+    ));
+    studentSnap.forEach(async (docsnap) => {
+      await deleteDoc(doc(db, "students", docsnap.id));
+    });
+  }
+  // Remove from UI
+  setChildList(prev => prev.filter((c) => c.id !== child.id));
+  setRemovingChildId(null);
+  // Optionally close modal or show a success message
+  // setShowRemoveModal(false);
+};
+
 
 
   const isActive = (path) => location.pathname === path;
@@ -110,6 +137,18 @@ const fetchAllChildren = async () => {
 >
   Edit current child data
 </button>
+<button
+  className="add-btn"
+  style={{ background: "#c32b2b", color: "#fff" }}
+  onClick={async (e) => {
+    e.preventDefault();
+    setShowRemoveModal(true);
+    await fetchAllChildren();
+  }}
+>
+  Remove Child
+</button>
+
 
               </div>
             </header>
@@ -118,8 +157,13 @@ const fetchAllChildren = async () => {
       <main className="child-main">
         <h2 className="main-title">Child Data</h2>
         {/* Tab Bar */}
-        <div className="tab-bar">
-          {/* ...your tabbar code... */}
+       <div className="tab-bar">
+          <button className={`tab${isActive("/child-profile/child-report") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/child-report")}>Basic Information</button>
+          <button className={`tab${isActive("/child-profile/child-details") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/child-details")}>Emergency Details</button>
+          <button className={`tab${isActive("/child-profile/medical-info") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/medical-info")}>Medical Information</button>
+          <button className={`tab${isActive("/child-profile/development-info") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/development-info")}>Developmental Information</button>
+          <button className={`tab${isActive("/child-profile/daily-routine") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/daily-routine")}>Daily Routine</button>
+          <button className={`tab${isActive("/child-profile/additional-info") ? ' tab-active' : ''}`} onClick={() => navigate("/child-profile/additional-info")}>Additional Information</button>
         </div>
 
         {/* ---------- FORM STARTS HERE ---------- */}
@@ -329,6 +373,62 @@ const fetchAllChildren = async () => {
     </div>
   </div>
 )}
+{showRemoveModal && (
+  <div style={{
+    position: "fixed", left: 0, top: 0, width: "100vw", height: "100vh",
+    background: "rgba(0,0,0,0.3)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
+  }}>
+    <div style={{
+      background: "white",
+      borderRadius: 12,
+      minWidth: 320,
+      maxWidth: 400,
+      padding: "1.5rem",
+      boxShadow: "0 4px 18px rgba(0,0,0,0.11)"
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <b style={{ fontSize: "1.11rem" }}>Select a child to <span style={{color:"#c32b2b"}}>Remove</span></b>
+        <button style={{
+            border: "none", background: "none", fontSize: 22, lineHeight: 1, cursor: "pointer", color: "#aaa"
+          }} onClick={() => setShowRemoveModal(false)}>×</button>
+      </div>
+      <div style={{ marginTop: 18, maxHeight: 320, overflow: "auto" }}>
+        {loadingChildren && <div style={{ padding: 10 }}>Loading...</div>}
+        {!loadingChildren && childList.length === 0 && <div style={{ padding: 8, color: "#777" }}>No children found.</div>}
+        {!loadingChildren && childList.map((child) => (
+          <div
+            key={child.id}
+            style={{
+              background: "#fff0f0",
+              borderRadius: 6,
+              padding: "13px 16px",
+              marginBottom: 8,
+              cursor: removingChildId ? "not-allowed" : "pointer",
+              border: "1px solid #f5c3c3",
+              fontWeight: 500,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              opacity: removingChildId === child.id ? 0.5 : 1,
+              pointerEvents: removingChildId ? "none" : "auto",
+              transition: "background 0.17s"
+            }}
+            onClick={() => {
+              if (!removingChildId) handleRemoveChild(child);
+            }}
+          >
+            <span style={{ fontSize: 15, color: "#d32f2f" }}>{child?.report?.name || "(No Name)"}</span>
+            <span style={{ fontSize: 12, color: "#9473d3", marginTop: 2 }}>{child?.report?.student_id}</span>
+            {removingChildId === child.id && (
+              <span style={{color:"#c32b2b", fontSize:12, marginTop:4 }}>Removing…</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
+
 
       </main>
  
