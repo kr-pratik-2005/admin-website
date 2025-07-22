@@ -11,6 +11,8 @@ from dateutil.relativedelta import relativedelta
 import hmac
 import hashlib
 import base64
+import requests
+from requests.auth import HTTPBasicAuth
 # ---------- Logging Setup ----------
 logging.basicConfig(
     level=logging.INFO,
@@ -27,13 +29,19 @@ app = Flask(__name__)
 # ---------- CORS Middleware ----------
 if os.getenv("FLASK_ENV") == "production":
     ALLOWED_ORIGINS = [
-        "https://admin.yourdomain.com",
-        "https://parent-dashboard-chi.vercel.app"
+        "https://mkfeez.mimansakids.com",  # Backend URL
+        "https://admin.mimansakids.com",   # Admin frontend (if separate)
+        "https://parent.mimansakids.com",  # Parent frontend (if separate)
+        "https://parent-dashboard-chi.vercel.app",  # Vercel parent dashboard
+        "https://admin-website.vercel.app",  # Vercel admin dashboard (if exists)
+        "http://localhost:3000",  # Local development
+        "http://localhost:3001"   # Local development
     ]
 else:
     ALLOWED_ORIGINS = [
         "http://localhost:3000",
         "http://localhost:3001",
+        "https://mkfeez.mimansakids.com",  # Backend URL
         "https://parent-dashboard-chi.vercel.app"
     ]
 
@@ -68,6 +76,46 @@ db = firestore.client()
 razorpay_client = razorpay.Client(
     auth=(os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET'))
 )
+
+# ---------- Webhook Registration Function ----------
+def register_razorpay_webhook(webhook_url):
+    """
+    Register webhook with Razorpay using the provided URL
+    """
+    try:
+        webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET")
+        if not webhook_secret:
+            logger.error("RAZORPAY_WEBHOOK_SECRET not found in environment variables")
+            return False, "Webhook secret not configured"
+        
+        url = "https://api.razorpay.com/v1/webhooks"
+        
+        payload = {
+            "url": webhook_url,
+            "active": True,
+            "events": {
+                "payment.captured": True,
+                "payment_link.paid": True
+            },
+            "secret": webhook_secret
+        }
+        
+        response = requests.post(
+            url,
+            auth=HTTPBasicAuth(os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET')),
+            json=payload
+        )
+        
+        if response.status_code == 200 or response.status_code == 201:
+            logger.info(f"✅ Webhook registered successfully with URL: {webhook_url}")
+            return True, "Webhook registered successfully"
+        else:
+            logger.error(f"❌ Failed to register webhook. Status: {response.status_code}, Response: {response.text}")
+            return False, f"Failed to register webhook: {response.text}"
+            
+    except Exception as e:
+        logger.error(f"Error registering webhook: {str(e)}")
+        return False, str(e)
 
 # ---------- Helper Functions ----------
 def month_to_sort_key(month_str):
@@ -106,18 +154,31 @@ def get_all_invoices(contact):
     return [doc.to_dict() for doc in query.stream()]
 
 def update_invoice_status(invoice_number, payment_id):
-    invoices_ref = db.collection('fees')
-    query = invoices_ref.where('invoice_number', '==', invoice_number).limit(1).stream()
-    for doc in query:
-        doc_ref = invoices_ref.document(doc.id)
-        doc_ref.update({
-            'paid': True,
-            'payment_id': payment_id,
-            'payment_date': firestore.SERVER_TIMESTAMP,
-            'razorpay_invoice_link': None
-        })
-        return True
-    return False
+    try:
+        logger.info(f"Updating invoice status for invoice_number: {invoice_number}, payment_id: {payment_id}")
+        invoices_ref = db.collection('fees')
+        query = invoices_ref.where('invoice_number', '==', invoice_number).limit(1).stream()
+        
+        doc_found = False
+        for doc in query:
+            doc_found = True
+            doc_ref = invoices_ref.document(doc.id)
+            doc_ref.update({
+                'paid': True,
+                'payment_id': payment_id,
+                'payment_date': firestore.SERVER_TIMESTAMP,
+                'razorpay_invoice_link': None
+            })
+            logger.info(f"Successfully updated invoice {invoice_number} in document {doc.id}")
+            return True
+        
+        if not doc_found:
+            logger.error(f"No invoice found with invoice_number: {invoice_number}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error updating invoice status for {invoice_number}: {str(e)}")
+        return False
 
 # ---------- Razorpay Webhook ----------
 
@@ -169,11 +230,88 @@ def create_order():
 
 @app.route('/update-payment-status', methods=['POST'])
 def update_payment_status():
-    data = request.json
-    invoice_number = data.get('invoice_number')
-    payment_id = data.get('payment_id')
-    success = update_invoice_status(invoice_number, payment_id)
-    return jsonify({"success": success})
+    try:
+        data = request.json
+        invoice_number = data.get('invoice_number')
+        payment_id = data.get('payment_id')
+        
+        if not invoice_number or not payment_id:
+            logger.error("Missing invoice_number or payment_id in request")
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+        
+        logger.info(f"Received payment status update request for invoice: {invoice_number}")
+        success = update_invoice_status(invoice_number, payment_id)
+        
+        if success:
+            logger.info(f"Payment status updated successfully for invoice: {invoice_number}")
+            return jsonify({"success": True, "message": "Payment status updated successfully"})
+        else:
+            logger.error(f"Failed to update payment status for invoice: {invoice_number}")
+            return jsonify({"success": False, "error": "Failed to update payment status"}), 500
+            
+    except Exception as e:
+        logger.error(f"Error in update_payment_status: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/get-pending-after-payment/<mobile>', methods=['GET'])
+def get_pending_after_payment(mobile):
+    try:
+        # Clean up mobile number
+        if mobile.startswith("+91"):
+            mobile = mobile[3:]
+        elif mobile.startswith("+"):
+            mobile = mobile[1:]
+        mobile = mobile.strip()
+        
+        # Get all unpaid invoices for this contact
+        fees_ref = db.collection('fees')
+        query = fees_ref.where('contact', '==', mobile).where('paid', '==', False)
+        invoices = []
+        
+        for doc in query.stream():
+            data = doc.to_dict()
+            invoices.append({
+                'invoice_number': data.get('invoice_number'),
+                'month': data.get('month'),
+                'amount': data.get('fee', 0),
+                'student_id': data.get('student_id')
+            })
+        
+        return jsonify(invoices)
+    except Exception as e:
+        logger.error(f"Error in get_pending_after_payment: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get_parent_name', methods=['POST'])
+def get_parent_name():
+    try:
+        data = request.json
+        phone_number = data.get('phoneNumber', '').strip()
+        
+        if not phone_number:
+            return jsonify({"error": "Phone number is required"}), 400
+        
+        # Clean up phone number
+        if phone_number.startswith("+91"):
+            phone_number = phone_number[3:]
+        elif phone_number.startswith("+"):
+            phone_number = phone_number[1:]
+        
+        # Search in students collection for this contact
+        students_ref = db.collection("students")
+        query = students_ref.where("contact", "==", phone_number).limit(1).stream()
+        
+        for doc in query:
+            data = doc.to_dict()
+            # Return the first student's parent name (assuming father_name is available)
+            parent_name = data.get("father_name", "") or data.get("mother_name", "") or "Parent"
+            return jsonify({"name": parent_name})
+        
+        return jsonify({"name": "Parent"})  # Default fallback
+        
+    except Exception as e:
+        logger.error(f"Error in get_parent_name: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/get-fees-by-student/<student_id>', methods=['GET'])
 def get_fees_by_student(student_id):
@@ -582,8 +720,7 @@ def razorpay_webhook():
         print("⚠️ Missing student_id or month in notes.")
         return jsonify({"error": "Missing data in notes"}), 400
 
-    doc_id = f"{student_id}-{month}"
-    print(f"📄 Updating Firestore document: {doc_id}")
+    print(f"📄 Looking for fee document with student_id: {student_id}, month: {month}")
 
     try:
         if not firebase_admin._apps:
@@ -591,20 +728,182 @@ def razorpay_webhook():
             firebase_admin.initialize_app(cred)
         db = firestore.client()
 
-        fee_doc_ref = db.collection("fees").document(doc_id)
-        fee_doc_ref.set({
-            "paid": True,
-            "paidAt": datetime.utcnow(),
-            "razorpay_payment_link_id": payment_link_id,
-            "amount": amount
-        }, merge=True)
+        # Find the correct document by querying with student_id and month
+        fees_ref = db.collection("fees")
+        query = fees_ref.where("student_id", "==", student_id).where("month", "==", month).limit(1)
+        docs = query.stream()
+        
+        doc_found = False
+        for doc in docs:
+            doc_found = True
+            fee_doc_ref = fees_ref.document(doc.id)
+            fee_doc_ref.update({
+                "paid": True,
+                "payment_date": firestore.SERVER_TIMESTAMP,
+                "razorpay_payment_link_id": payment_link_id,
+                "amount": amount,
+                "payment_id": payment_link_id
+            })
+            print(f"✅ Firestore updated for document {doc.id} (student_id: {student_id}, month: {month})")
+            break
 
-        print(f"✅ Firestore updated for {doc_id}")
+        if not doc_found:
+            print(f"❌ No fee document found for student_id: {student_id}, month: {month}")
+            return jsonify({"error": "Fee document not found"}), 404
+
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
         print("🔥 Firestore update failed:", str(e))
         return jsonify({"error": "Internal server error"}), 500
+
+@app.route('/register-webhook', methods=['POST'])
+def register_webhook_endpoint():
+    """
+    Endpoint to register webhook with Razorpay
+    Usage: POST /register-webhook with JSON body: {"webhook_url": "https://mkfeez.mimansakids.com/razorpayWebhook"}
+    """
+    try:
+        data = request.json
+        webhook_url = data.get('webhook_url')
+        
+        if not webhook_url:
+            return jsonify({"success": False, "error": "webhook_url is required"}), 400
+        
+        # Validate URL format
+        if not webhook_url.startswith(('http://', 'https://')):
+            return jsonify({"success": False, "error": "Invalid URL format"}), 400
+        
+        success, message = register_razorpay_webhook(webhook_url)
+        
+        if success:
+            return jsonify({"success": True, "message": message, "webhook_url": webhook_url})
+        else:
+            return jsonify({"success": False, "error": message}), 500
+            
+    except Exception as e:
+        logger.error(f"Error in register_webhook_endpoint: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/test-webhook', methods=['GET'])
+def test_webhook():
+    """
+    Test endpoint to verify webhook is accessible
+    """
+    return jsonify({
+        "status": "success",
+        "message": "Webhook endpoint is working",
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.route('/list-webhooks', methods=['GET'])
+def list_webhooks():
+    """
+    List all registered webhooks
+    """
+    try:
+        url = "https://api.razorpay.com/v1/webhooks"
+        
+        response = requests.get(
+            url,
+            auth=HTTPBasicAuth(os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET'))
+        )
+        
+        if response.status_code == 200:
+            webhooks = response.json()
+            return jsonify({
+                "success": True,
+                "webhooks": webhooks.get('items', []),
+                "count": len(webhooks.get('items', []))
+            })
+        else:
+            logger.error(f"Failed to fetch webhooks. Status: {response.status_code}")
+            return jsonify({"success": False, "error": "Failed to fetch webhooks"}), 500
+            
+    except Exception as e:
+        logger.error(f"Error listing webhooks: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/delete-webhook/<webhook_id>', methods=['DELETE'])
+def delete_webhook(webhook_id):
+    """
+    Delete a specific webhook by ID
+    """
+    try:
+        url = f"https://api.razorpay.com/v1/webhooks/{webhook_id}"
+        
+        response = requests.delete(
+            url,
+            auth=HTTPBasicAuth(os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET'))
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"Webhook {webhook_id} deleted successfully")
+            return jsonify({"success": True, "message": f"Webhook {webhook_id} deleted successfully"})
+        else:
+            logger.error(f"Failed to delete webhook. Status: {response.status_code}")
+            return jsonify({"success": False, "error": "Failed to delete webhook"}), 500
+            
+    except Exception as e:
+        logger.error(f"Error deleting webhook: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/init-webhook', methods=['POST'])
+def initialize_webhook():
+    """
+    Initialize webhook with the server's base URL
+    Usage: POST /init-webhook with JSON body: {"base_url": "https://mkfeez.mimansakids.com"}
+    """
+    try:
+        data = request.json
+        base_url = data.get('base_url')
+        
+        if not base_url:
+            return jsonify({"success": False, "error": "base_url is required"}), 400
+        
+        # Remove trailing slash if present
+        base_url = base_url.rstrip('/')
+        
+        # Construct webhook URL
+        webhook_url = f"{base_url}/razorpayWebhook"
+        
+        logger.info(f"Initializing webhook with URL: {webhook_url}")
+        
+        # First, list existing webhooks
+        list_response = requests.get(
+            "https://api.razorpay.com/v1/webhooks",
+            auth=HTTPBasicAuth(os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET'))
+        )
+        
+        if list_response.status_code == 200:
+            existing_webhooks = list_response.json().get('items', [])
+            
+            # Check if webhook with this URL already exists
+            for webhook in existing_webhooks:
+                if webhook.get('url') == webhook_url:
+                    logger.info(f"Webhook already exists with URL: {webhook_url}")
+                    return jsonify({
+                        "success": True, 
+                        "message": "Webhook already registered",
+                        "webhook_url": webhook_url,
+                        "webhook_id": webhook.get('id')
+                    })
+        
+        # Register new webhook
+        success, message = register_razorpay_webhook(webhook_url)
+        
+        if success:
+            return jsonify({
+                "success": True, 
+                "message": message, 
+                "webhook_url": webhook_url
+            })
+        else:
+            return jsonify({"success": False, "error": message}), 500
+            
+    except Exception as e:
+        logger.error(f"Error initializing webhook: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
