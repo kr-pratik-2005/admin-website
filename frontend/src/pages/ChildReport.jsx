@@ -3,7 +3,7 @@ import giraffeIcon from "../assets/Logo.png";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChildDataContext } from "./ChildProfileFlow";
 
-import { collection, query, where, getDocs, doc, deleteDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, deleteDoc,updateDoc  } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
 export default function ChildReport() {
@@ -33,29 +33,31 @@ const fetchAllChildren = async () => {
   setChildList(kids);
   setLoadingChildren(false);
 };
+
+
+// In your handleRemoveChild (replace deleteDoc):
+
 const handleRemoveChild = async (child) => {
-  setRemovingChildId(child.id);
+  setRemovingChildId(child.id);
 
-  // First, delete from child_profiles
-  await deleteDoc(doc(db, "child_profiles", child.id));
+  // Mark as removed in child_profiles
+  await updateDoc(doc(db, "child_profiles", child.id), { isActive: false });
 
-  // Then, search for student in "students" collection by student_id
-  if (child?.report?.student_id) {
-    // Find document in "students" with same student_id
-    const studentSnap = await getDocs(query(
-      collection(db, "students"),
-      where("student_id", "==", child.report.student_id)
-    ));
-    studentSnap.forEach(async (docsnap) => {
-      await deleteDoc(doc(db, "students", docsnap.id));
-    });
-  }
-  // Remove from UI
-  setChildList(prev => prev.filter((c) => c.id !== child.id));
-  setRemovingChildId(null);
-  // Optionally close modal or show a success message
-  // setShowRemoveModal(false);
+  // Mark as removed in students, if entry exists
+  if (child?.report?.student_id) {
+    const studentSnap = await getDocs(query(
+      collection(db, "students"),
+      where("student_id", "==", child.report.student_id)
+    ));
+    studentSnap.forEach(async (docsnap) => {
+      await updateDoc(doc(db, "students", docsnap.id), { isActive: false });
+    });
+  }
+
+  setChildList(prev => prev.filter((c) => c.id !== child.id));
+  setRemovingChildId(null);
 };
+
 
 
 

@@ -170,9 +170,10 @@ const handleStudentNameClick = (student) => {
       try {
         const studentsSnapshot = await getDocs(collection(db, "students"));
         const allStudents = studentsSnapshot.docs.map(docSnap => ({
-          id: docSnap.id,
-          ...docSnap.data()
-        }));
+  id: docSnap.id,
+  ...docSnap.data()
+})).filter(stu => stu.isActive !== false); // show if true or undefined
+setStudents(allStudents);
 
         for (const student of allStudents) {
           const attendanceQ = query(
@@ -1043,7 +1044,7 @@ const grades = ["Playgroup", "Nursery", "Pre primary I", "Pre-primary-II", "Pre-
   }}>
     <div style={{
       background: 'white', borderRadius: '8px', padding: '2rem',
-      minWidth: '350px', maxWidth: '90%', maxHeight: '90vh', overflowY: 'auto'
+      minWidth: '350px', maxWidth: '90%', maxHeight: '90vh', overflowY: 'auto',position: 'relative'
     }}>
       <h2>Leave Requests</h2>
       <button
@@ -1100,6 +1101,23 @@ const grades = ["Playgroup", "Nursery", "Pre primary I", "Pre-primary-II", "Pre-
         </>
       )}
     </div>
+    <button
+  onClick={() => setShowLeaveRequestsModal(false)}
+  style={{
+    position: 'absolute',
+    top: '24px',
+    right: '32px',
+    background: 'transparent',
+    border: 'none',
+    color: '#888',
+    fontSize: 26,
+    cursor: 'pointer'
+  }}
+  aria-label="Close"
+>
+  ×
+</button>
+
   </div>
 )}
 

@@ -254,6 +254,46 @@ export default function DailyReports() {
     };
     fetchThemeOfDay();
   }, [form.student_id, studentClass, date]);
+useEffect(() => {
+  if (!form.student_id) return;
+  const fetchReport = async () => {
+    const reportId = `${form.student_id}_${date}`;
+    const reportRef = doc(db, "daily_reports", reportId);
+    const snap = await getDoc(reportRef);
+    if (snap.exists()) {
+      // Merge, so you preserve the default structure for any missing fields.
+      setForm(prev => ({
+        ...prev,
+        ...snap.data(),
+        // Timestamp objects to empty strings for time fields (for safety)
+        inTime: snap.data().inTime || "",
+        outTime: snap.data().outTime || "",
+      }));
+    } else {
+      setForm(prev => ({
+        ...prev,
+        outTime: "",
+        snacks: "",
+        meal: "",
+        sleep: false,
+        sleepFrom: "",
+        sleepTo: "",
+        diaperChanged: false,
+        noDiaper: false,
+        diaperTimes: 1,
+        poops: 1,
+        feelings: [],
+        learning: '',
+        teacherNote: '',
+        ouch: { student: '', incident: '', comment: '' },
+        incident: { student: '', description: '', comment: '' },
+        theme: [],
+        themeDetails: Array(5).fill(''),
+      }));
+    }
+  };
+  fetchReport();
+}, [form.student_id, date]);
 
   // Search filter for dropdown
   const filteredStudents = studentsList.filter(s =>

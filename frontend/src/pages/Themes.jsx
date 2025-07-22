@@ -24,11 +24,13 @@ const [showClearModal, setShowClearModal] = useState(false);
 
   const [selectedClass, setSelectedClass] = useState("Playgroup");
   const [theme, setTheme] = useState("");
-  const [category, setCategory] = useState("Language Development");
+
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return today.toISOString().slice(0, 10);
   });
+  const [checkedCategories, setCheckedCategories] = useState([]);
+
 
   const [themeOfWeek, setThemeOfWeek] = useState(null);
   const [themeOfDay, setThemeOfDay] = useState(null);
@@ -41,6 +43,12 @@ const [showClearModal, setShowClearModal] = useState(false);
     "Pretend play",
     "Story Telling",
   ];
+const [category, setCategory] = useState([sectionList[0]]);
+const todayStr = new Date(selectedDate).toLocaleDateString('en-IN', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric'
+});
 
   const defaultStructure = sectionList.reduce((acc, section) => {
     acc[section] = [];
@@ -48,28 +56,33 @@ const [showClearModal, setShowClearModal] = useState(false);
   }, {});
 
   const handleAddTag = () => {
-    if (!theme.trim()) return;
+  if (!theme.trim() || checkedCategories.length === 0) return;
 
-    setThemeOfWeek(prev => {
-      const copy = { ...prev };
-      if (!copy[category]) copy[category] = [];
-      if (!copy[category].includes(theme.trim())) {
-        copy[category] = [...copy[category], theme.trim()];
+  setThemeOfWeek(prev => {
+    const copy = { ...prev };
+    checkedCategories.forEach(cat => {
+      if (!copy[cat]) copy[cat] = [];
+      if (!copy[cat].includes(theme.trim())) {
+        copy[cat] = [...copy[cat], theme.trim()];
       }
-      return copy;
     });
+    return copy;
+  });
 
-    setThemeOfDay(prev => {
-      const copy = { ...prev };
-      if (!copy[category]) copy[category] = [];
-      if (!copy[category].includes(theme.trim())) {
-        copy[category] = [...copy[category], theme.trim()];
+  setThemeOfDay(prev => {
+    const copy = { ...prev };
+    checkedCategories.forEach(cat => {
+      if (!copy[cat]) copy[cat] = [];
+      if (!copy[cat].includes(theme.trim())) {
+        copy[cat] = [...copy[cat], theme.trim()];
       }
-      return copy;
     });
+    return copy;
+  });
 
-    setTheme("");
-  };
+  setTheme("");
+};
+
 function getWeekNumber(date) {
   const copy = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = copy.getUTCDay() || 7;
@@ -165,12 +178,8 @@ useEffect(() => {
 
         <div className="themes-form">
           <div className="themes-row">
-            <label>Sort by age</label>
-            <select className="themes-input" defaultValue="2 - 3 years">
-              <option>2 - 3 years</option>
-              <option>3 - 4 years</option>
-              <option>4 - 5 years</option>
-            </select>
+            <label>Sort by class</label>
+            
             <select
               className="themes-input"
               style={{ width: 180 }}
@@ -209,16 +218,26 @@ useEffect(() => {
 
           <div className="themes-row">
   <label>Select Category</label>
-  <select
-    className="themes-input"
-    value={category}
-    onChange={e => setCategory(e.target.value)}
-    style={{ width: 180 }}
-  >
-    {sectionList.map(s => (
-      <option key={s}>{s}</option>
-    ))}
-  </select>
+
+  <div className="category-checkboxes" style={{ display:'flex', flexWrap:'wrap', gap: '1rem', marginTop: 8 }}>
+  {sectionList.map(categoryName => (
+    <label key={categoryName} style={{ display:'flex', alignItems:'center', gap:'0.3rem' }}>
+      <input
+        type="checkbox"
+        checked={checkedCategories.includes(categoryName)}
+        onChange={() => {
+          setCheckedCategories(prev =>
+            prev.includes(categoryName)
+              ? prev.filter(c => c !== categoryName)
+              : [...prev, categoryName]
+          );
+        }}
+      />
+      {categoryName}
+    </label>
+  ))}
+</div>
+
   <button className="add-tag-btn" type="button" onClick={handleAddTag}>
     Add Tag
   </button>
@@ -310,7 +329,13 @@ useEffect(() => {
 
         {/* Theme of the Day */}
         <div className="themes-day">
-          <div className="themes-day-title">Theme of the day</div>
+<div className="themes-day-title">
+  Theme of the day
+  <span style={{ marginLeft: 16, color: "#888", fontSize: "1rem" }}>
+    {todayStr}
+  </span>
+</div>
+
           {sectionList.map(section => (
             <div className="themes-day-row" key={section}>
               <input
